@@ -1,0 +1,79 @@
+// Design tokeny – barvy jako CSS proměnné, tmavý režim podle systému nebo data-theme
+
+@mixin light-theme {
+  --bg: #fafaf7;
+  --card: #ffffff;
+  --text: #1a1a1a;
+  --text-muted: #6b6b6b;
+  --border: #e8e6e1;
+  --accent: #2f5d50;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgba(47, 93, 80, 0.08);
+  --income: #3a7d5c;
+  --expense: #c0533a;
+  --expense-soft: rgba(192, 83, 58, 0.08);
+  --warning: #b7791f;
+  --warning-soft: rgba(183, 121, 31, 0.1);
+  --hover: rgba(0, 0, 0, 0.035);
+  --backdrop: rgba(20, 20, 18, 0.35);
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  color-scheme: light;
+}
+
+@mixin dark-theme {
+  --bg: #121212;
+  --card: #1c1c1c;
+  --text: #ededed;
+  --text-muted: #9a9a9a;
+  --border: #2a2a2a;
+  --accent: #5fa08b;
+  --accent-contrast: #0f1f1a;
+  --accent-soft: rgba(95, 160, 139, 0.12);
+  --income: #6bc49a;
+  --expense: #e07a62;
+  --expense-soft: rgba(224, 122, 98, 0.12);
+  --warning: #e3b05c;
+  --warning-soft: rgba(227, 176, 92, 0.12);
+  --hover: rgba(255, 255, 255, 0.04);
+  --backdrop: rgba(0, 0, 0, 0.55);
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+}
+
+:root {
+  @include light-theme;
+
+  --font: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --radius-sm: 10px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --duration: 180ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --touch: 44px;
+  --tabbar-h: 64px;
+  --sidebar-w: 240px;
+  --content-max: 720px;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    @include dark-theme;
+  }
+}
+
+:root[data-theme='dark'] {
+  @include dark-theme;
+}
+
+$bp-desktop: 900px;
+
+@mixin desktop {
+  @media (min-width: $bp-desktop) {
+    @content;
+  }
+}

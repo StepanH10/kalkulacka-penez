@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Prostředí
+.env
+.env.*
+!.env.example
+
+# PWA (generuje vite-plugin-pwa)
+dev-dist

@@ -1,0 +1,178 @@
+@use 'tokens' as *;
+
+// Přehled
+.overview-hero {
+  display: grid;
+  gap: 20px;
+}
+
+.overview-hero__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.accounts-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 0 16px;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  @include desktop {
+    flex-wrap: wrap;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+.account-chip {
+  flex-shrink: 0;
+  display: grid;
+  gap: 2px;
+  min-width: 120px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+
+  strong {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.month-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+
+  strong {
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+}
+
+// Spoření
+.goal {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid var(--border);
+  text-align: left;
+  transition: background-color var(--duration) var(--ease);
+
+  &:hover {
+    background: color-mix(in srgb, var(--card) 96%, var(--text));
+  }
+}
+
+.goal__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.goal__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+// Statistiky
+.period-custom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.filters {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+// Nastavení
+.profile-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 1.125rem;
+}
+
+.budget-row {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+  width: 100%;
+  border-left: 0;
+  border-right: 0;
+  border-bottom: 0;
+  background: transparent;
+  text-align: left;
+
+  &:first-child {
+    border-top: 0;
+  }
+
+  &:hover {
+    background: var(--hover);
+  }
+}
+
+.budget-row__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9375rem;
+}
+
+.config-missing {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 48px 20px;
+
+  code {
+    padding: 2px 6px;
+    border-radius: 6px;
+    background: var(--hover);
+    font-size: 0.875em;
+  }
+
+  ol {
+    padding-left: 20px;
+    line-height: 1.8;
+  }
+}

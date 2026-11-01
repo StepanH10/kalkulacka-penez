@@ -1,0 +1,60 @@
+@use 'tokens' as *;
+
+.auth {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: calc(24px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
+}
+
+.auth__card {
+  width: 100%;
+  max-width: 400px;
+  padding: 32px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+
+  @include desktop {
+    padding: 40px;
+  }
+}
+
+.auth__brand {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+  text-align: center;
+
+  img {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+  }
+
+  p {
+    font-size: 0.9375rem;
+    color: var(--text-muted);
+  }
+}
+
+.auth__links {
+  display: grid;
+  gap: 8px;
+  margin-top: 24px;
+  font-size: 0.9375rem;
+  text-align: center;
+  color: var(--text-muted);
+
+  a {
+    font-weight: 500;
+  }
+}
+
+.auth__row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -6px;
+  font-size: 0.875rem;
+}

@@ -1,0 +1,84 @@
+import {
+  ArrowDownLeft,
+  ArrowLeftRight,
+  ArrowUpRight,
+  ChartPie,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Eye,
+  EyeOff,
+  FileJson,
+  FileSpreadsheet,
+  House,
+  KeyRound,
+  List,
+  LogOut,
+  Monitor,
+  Moon,
+  Pencil,
+  PiggyBank,
+  Plus,
+  Repeat,
+  Settings,
+  Sun,
+  Tag,
+  Target,
+  Trash2,
+  TriangleAlert,
+  Upload,
+  User,
+  Wallet,
+  WifiOff,
+  X,
+} from 'lucide'
+
+const ICONS = {
+  'arrow-down-left': ArrowDownLeft,
+  'arrow-left-right': ArrowLeftRight,
+  'arrow-up-right': ArrowUpRight,
+  'chart-pie': ChartPie,
+  check: Check,
+  'chevron-left': ChevronLeft,
+  'chevron-right': ChevronRight,
+  download: Download,
+  eye: Eye,
+  'eye-off': EyeOff,
+  'file-json': FileJson,
+  'file-spreadsheet': FileSpreadsheet,
+  house: House,
+  'key-round': KeyRound,
+  list: List,
+  'log-out': LogOut,
+  monitor: Monitor,
+  moon: Moon,
+  pencil: Pencil,
+  'piggy-bank': PiggyBank,
+  plus: Plus,
+  repeat: Repeat,
+  settings: Settings,
+  sun: Sun,
+  tag: Tag,
+  target: Target,
+  trash: Trash2,
+  'triangle-alert': TriangleAlert,
+  upload: Upload,
+  user: User,
+  wallet: Wallet,
+  'wifi-off': WifiOff,
+  x: X,
+}
+
+const attrs = (obj) =>
+  Object.entries(obj)
+    .map(([k, v]) => `${k}="${v}"`)
+    .join(' ')
+
+/** SVG ikona Lucide jako HTML řetězec. */
+export function icon(name, { size = 20, strokeWidth = 1.75 } = {}) {
+  const node = ICONS[name]
+  if (!node) return ''
+  const children = node.map(([tag, a]) => `<${tag} ${attrs(a)}/>`).join('')
+  return `<svg class="icon" xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${children}</svg>`
+}

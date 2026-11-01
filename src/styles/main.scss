@@ -1,22 +1,6 @@
-$font-stack: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-$color-text: #1a1a1a;
-$color-bg: #ffffff;
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  font-family: $font-stack;
-  color: $color-text;
-  background: $color-bg;
-}
-
-#app {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 2rem 1rem;
-}
+@use 'tokens';
+@use 'base';
+@use 'layout';
+@use 'components';
+@use 'auth';
+@use 'views';
