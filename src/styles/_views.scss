@@ -196,3 +196,82 @@
     line-height: 1.8;
   }
 }
+
+// Pozvánky do skupin: banner na Přehledu
+.invite-banners {
+  margin-bottom: 20px;
+}
+
+.invite-banner {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px 14px;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: var(--accent-soft);
+}
+
+.invite-banner__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--accent);
+}
+
+.invite-banner__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+.invite-banner__actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+
+  .btn {
+    min-height: var(--touch);
+  }
+}
+
+// Stránka /join/<token>
+.join-card {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+
+  .btn {
+    width: 100%;
+  }
+}
+
+.join-card__icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+// QR kód: vždy tmavý na bílém (čitelnost i v tmavém režimu)
+.qr {
+  justify-self: center;
+  width: min(240px, 100%);
+  padding: 12px;
+  border-radius: var(--radius);
+  background: #fff;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+}

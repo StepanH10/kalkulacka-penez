@@ -11,6 +11,7 @@ let state = {
   space: undefined,
   groups: [], // moje skupiny včetně mé role
   members: [], // členové aktuální skupiny (přezdívky)
+  invites: [], // moje čekající pozvánky do skupin
   ...emptyData(),
   loaded: false,
   offline: false,
@@ -33,7 +34,7 @@ export function subscribe(fn) {
 }
 
 export function resetData() {
-  setState({ profile: null, space: undefined, groups: [], members: [], ...emptyData(), loaded: false, offline: false })
+  setState({ profile: null, space: undefined, groups: [], members: [], invites: [], ...emptyData(), loaded: false, offline: false })
 }
 
 export { emptyData }

@@ -6,7 +6,7 @@ import { injectSpeedInsights } from '@vercel/speed-insights'
 import { supabase, isConfigured } from './lib/supabase.js'
 import { getState, setState, resetData } from './state/store.js'
 import { loadAll, processRecurring } from './services/api.js'
-import { startRouter, navigate } from './router.js'
+import { startRouter, navigate, consumeReturnPath } from './router.js'
 import { showToast } from './components/toast.js'
 import { watchMissingUsername } from './components/usernameSheet.js'
 import { initTheme } from './utils/theme.js'
@@ -76,7 +76,7 @@ async function start() {
       }
       if (event === 'SIGNED_IN' && prev?.user?.id !== session?.user?.id) {
         resetData()
-        if (location.pathname !== '/reset-password') navigate('/', { replace: true })
+        if (location.pathname !== '/reset-password') navigate(consumeReturnPath() ?? '/', { replace: true })
       }
     }, 0)
   })

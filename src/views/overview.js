@@ -1,6 +1,7 @@
 import { getState, subscribe } from '../state/store.js'
 import { accountBalances, totalBalance, transactionsInRange, totals, budgetStatus, feedItems } from '../state/selectors.js'
 import { renderFeed, bindFeed } from '../components/feed.js'
+import { renderInviteBanner, bindInviteBanner } from '../components/inviteBanner.js'
 import { esc } from '../utils/dom.js'
 import { icon } from '../utils/icons.js'
 import { formatMoney, formatPercent } from '../utils/format.js'
@@ -38,6 +39,8 @@ export default function overviewView(el) {
         </div>
         <span class="muted" style="text-transform:capitalize">${esc(formatMonth(from))}</span>
       </header>
+
+      ${renderInviteBanner(state)}
 
       <section class="card overview-hero">
         <div class="stat">
@@ -84,8 +87,10 @@ export default function overviewView(el) {
   draw()
   const unsub = subscribe(draw)
   const unbind = bindFeed(el)
+  const unbindInvites = bindInviteBanner(el)
   return () => {
     unsub()
     unbind()
+    unbindInvites()
   }
 }

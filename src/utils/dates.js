@@ -43,6 +43,7 @@ const dayYearFormat = new Intl.DateTimeFormat('cs-CZ', { day: 'numeric', month: 
 const shortFormat = new Intl.DateTimeFormat('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' })
 const monthFormat = new Intl.DateTimeFormat('cs-CZ', { month: 'long', year: 'numeric' })
 const monthShortFormat = new Intl.DateTimeFormat('cs-CZ', { month: 'short' })
+const dateTimeFormat = new Intl.DateTimeFormat('cs-CZ', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 /** „Dnes“, „Včera“, nebo „pondělí 3. listopadu“. */
 export function formatDayLabel(iso) {
@@ -57,6 +58,11 @@ export function formatDayLabel(iso) {
 
 export function formatDate(iso) {
   return iso ? shortFormat.format(parseISODate(iso)) : ''
+}
+
+/** Datum a čas z časového razítka (např. platnost pozvánky). */
+export function formatDateTime(timestamp) {
+  return timestamp ? dateTimeFormat.format(new Date(timestamp)) : ''
 }
 
 export function formatLongDate(iso) {

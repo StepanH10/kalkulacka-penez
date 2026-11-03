@@ -65,6 +65,12 @@ async function fetchGroups(userId) {
     .sort((a, b) => a.name.localeCompare(b.name, 'cs'))
 }
 
+export async function fetchMyInvites() {
+  const { data, error } = await supabase.rpc('get_my_invites')
+  if (error) throw error
+  return data ?? []
+}
+
 export async function fetchMembers(groupId) {
   const { data, error } = await supabase.rpc('get_group_members', { p_group: groupId })
   if (error) throw error
@@ -90,9 +96,10 @@ export function loadAll() {
   const run = (async () => {
     let space = requested
     try {
-      const [profile, groups] = await Promise.all([
+      const [profile, groups, invites] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
         fetchGroups(user.id),
+        fetchMyInvites(),
       ])
       if (profile.error) throw profile.error
       // ze skupiny mě mezitím odebrali nebo zanikla → zpět do osobního prostoru
@@ -110,7 +117,7 @@ export function loadAll() {
       ])
       if (seq !== loadSeq) return // mezitím se přepnul prostor
       const data = Object.fromEntries(Object.keys(TABLES).map((k, i) => [k, lists[i]]))
-      setState({ profile: profile.data, groups, members, space, ...data, loaded: true, offline: false })
+      setState({ profile: profile.data, groups, members, invites, space, ...data, loaded: true, offline: false })
       saveCache()
       if (lost) showToast('Skupina už pro vás není dostupná. Přepnuto na osobní prostor.', { duration: 6000 })
     } catch (error) {

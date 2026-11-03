@@ -15,6 +15,7 @@ import categoriesView from './views/settings/categories.js'
 import budgetsView from './views/settings/budgets.js'
 import recurringView from './views/settings/recurring.js'
 import groupView from './views/settings/group.js'
+import joinView from './views/join.js'
 
 // guest: jen pro nepřihlášené, auth: jen pro přihlášené, jinak veřejné
 const ROUTES = {
@@ -34,6 +35,38 @@ const ROUTES = {
   '/settings/group': { view: groupView, auth: true, nav: 'settings', title: 'Skupina' },
 }
 
+// Dynamické trasy (s parametrem v cestě)
+const JOIN_ROUTE = { view: joinView, auth: true, nav: 'overview', title: 'Pozvánka' }
+
+function resolveRoute(path) {
+  if (ROUTES[path]) return ROUTES[path]
+  if (/^\/join\/[^/]+$/.test(path)) return JOIN_ROUTE
+  return null
+}
+
+// Kam se vrátit po přihlášení (např. odkaz /join/… otevřený bez přihlášení).
+// localStorage, aby přežil i potvrzení e-mailu v nové záložce; platí hodinu.
+const RETURN_KEY = 'kp-return'
+
+function rememberReturn(path) {
+  try {
+    localStorage.setItem(RETURN_KEY, JSON.stringify({ path, at: Date.now() }))
+  } catch {
+    /* nevadí */
+  }
+}
+
+export function consumeReturnPath() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(RETURN_KEY))
+    localStorage.removeItem(RETURN_KEY)
+    if (saved?.path?.startsWith('/') && Date.now() - saved.at < 3_600_000) return saved.path
+  } catch {
+    /* nevadí */
+  }
+  return null
+}
+
 let root
 let cleanup = null
 let ensureData = async () => {}
@@ -47,12 +80,18 @@ export function navigate(path, { replace = false } = {}) {
 
 async function render() {
   const path = location.pathname.replace(/\/+$/, '') || '/'
-  const route = ROUTES[path]
+  const route = resolveRoute(path)
   const loggedIn = Boolean(getState().session)
 
   if (!route) return navigate(loggedIn ? '/' : '/login', { replace: true })
-  if (route.auth && !loggedIn) return navigate('/login', { replace: true })
-  if (route.guest && loggedIn) return navigate('/', { replace: true })
+  if (route.auth && !loggedIn) {
+    if (path.startsWith('/join/')) {
+      rememberReturn(path)
+      sessionStorage.setItem('kp-auth-notice', 'Pro připojení ke skupině se přihlaste nebo si vytvořte účet.')
+    }
+    return navigate('/login', { replace: true })
+  }
+  if (route.guest && loggedIn) return navigate(consumeReturnPath() ?? '/', { replace: true })
 
   cleanup?.()
   cleanup = null

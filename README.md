@@ -10,6 +10,7 @@ Mobile-first webová aplikace (PWA) pro osobní finance: zapisování výdajů, 
 - Úprava a mazání transakcí, na mobilu swipe doleva = smazat (s „Zpět“)
 - Kategorie s barvou a emoji – vlastní kategorii jde založit přímo při zadávání transakce (tlačítko „+ Vlastní“), správa v Nastavení s přesunem transakcí při mazání
 - Více účtů a převody
+- Pozvánky do skupin podle tagu nebo jednorázovým odkazem s QR kódem (Sdílet, Kopírovat); čekající pozvánky na Přehledu
 - Skupiny (sdílené prostory) s rolemi vlastník / editor / pozorovatel: vlastní účty, transakce, kategorie, rozpočty a cíle; přepínač prostoru nahoře v aplikaci
 - Spořicí cíle s progress barem, vklady a výběry
 - Statistiky: donut výdajů podle kategorií, sloupcový graf příjmů a výdajů po měsících, filtr období a kategorie
@@ -106,6 +107,30 @@ src/
 ```
 
 ## Deník změn
+
+### 2026-11-03 – Migrace 006: upozornění (fáze 5 – databáze)
+- Tabulka `notifications` (user_id, type, data jsonb, read_at). RLS: každý vidí jen svá upozornění a smí u nich měnit jen `read_at`. Vytvářejí je výhradně triggery.
+- Typy a triggery:
+  - `invite_received`: nová pozvánka podle tagu.
+  - `invite_accepted`: přijetí mé pozvánky, tagem i odkazem, s tagem toho, kdo se připojil.
+  - `group_expense`: nový výdaj ve skupině všem ostatním členům, kromě výdajů z opakovaných plateb.
+  - `role_changed`: změna mé role (kromě vlastní změny při předání vlastnictví).
+  - `member_removed`: odebrání ze skupiny (ne při vlastním odchodu ani při smazání celé skupiny).
+- Odmítnutí a vypršení pozvánky se odesílateli neoznamují.
+- `data` obsahuje název skupiny a přezdívky v okamžiku události, nikdy e-maily.
+- Tabulka se přidá do publikace `supabase_realtime`, nová upozornění tak mohou chodit hned.
+- Ověřeno v PGlite: migrace 002 → 006 (006 dvakrát) a 26 kontrol.
+
+### 2026-11-03 – Pozvánky: UI (fáze 4)
+- Přehled: banner s čekajícími pozvánkami („bara#2479 vás zve jako editora“) s tlačítky Přijmout / Odmítnout. Po přijetí toast s akcí „Přepnout“ do skupiny.
+- Nastavení → Skupina (vlastník):
+  - Pozvání podle celého tagu s volbou role. Chybné hlášky jdou z databáze, např. „Uživatel nenalezen.“
+  - „Pozvat odkazem nebo QR kódem“: volba role, QR kód (tmavý na bílém i v tmavém režimu), Sdílet (Web Share API, je-li k dispozici) a Kopírovat odkaz.
+  - Přehled pozvánek: čekající lze zneplatnit, u ostatních stav a kdo odkaz použil.
+- Stránka `/join/<token>`: název skupiny a role, „Připojit se“ (pak přepne do skupiny). Neplatný, použitý i prošlý odkaz má stejnou hlášku.
+- Nepřihlášený uživatel s odkazem `/join/…` se po přihlášení (i po potvrzení e-mailu v nové záložce) vrátí zpět na pozvánku (`kp-return` v localStorage, platnost 1 h).
+- Nová služba `src/services/invites.js`. RPC s výsledkem `{ ok, message }` převádí neúspěch na chybu s hláškou z databáze.
+- Knihovna `qrcode` se načítá až při vytvoření odkazu (samostatný chunk), ne při startu aplikace.
 
 ### 2026-11-03 – Migrace 005: pozvánky do skupin (fáze 4 – databáze)
 - Tabulka `group_invites`: pozvánka podle tagu (`invited_user_id`), nebo jednorázovým odkazem (`token_hash`). Stavy pending / accepted / declined / expired / revoked, `accepted_by`, `used_at`. Klient do ní nezapisuje, čte jen vlastník skupiny a pozvaný (RLS).

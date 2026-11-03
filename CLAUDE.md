@@ -18,6 +18,7 @@ Bez `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) aplikace zobrazí jen
 - `src/state/store.js` – globální stav (`getState`, `setState`, `subscribe`) + offline cache v localStorage
 - `src/state/selectors.js` – odvozené výpočty (zůstatky, součty, rozpočty, feed)
 - `src/state/space.js` – aktuální prostor (osobní / skupina) a oprávnění: `canEdit`, `canManage`, `canModifyEntry`, `authorName`. Store drží vždy data **jen zvoleného prostoru** (`state.space`: null = osobní, jinak id skupiny). `loadAll` filtruje podle `group_id` a `createRow` doplní `group_id` sám, takže obrazovky prostor neřeší.
+- `src/services/invites.js` – pozvánky (tag, odkaz/QR, přijetí, odmítnutí); RPC s limitem pokusů vrací `{ ok, message }`, služba neúspěch převede na chybu
 - `src/services/groups.js` – přepnutí prostoru, vytvoření / přejmenování / smazání skupiny, role, odebrání, opuštění, předání vlastnictví
 - Nová editační akce v UI = skrýt ji podle `canEdit()` / `canManage()` / `canModifyEntry()` (databáze to hlídá vždy, UI jen nenabízí, co neprojde).
 - `src/services/api.js` – `loadAll`, generické `createRow/updateRow/deleteRow/restoreRow` podle klíče stavu (mapování v `TABLES`)

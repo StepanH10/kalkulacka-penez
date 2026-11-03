@@ -1,16 +1,59 @@
 import { getState, subscribe, currentUser } from '../../state/store.js'
 import { currentGroup, ROLE_LABELS } from '../../state/space.js'
 import { renameGroup, setMemberRole, removeMember, transferOwnership, leaveGroup, deleteGroup } from '../../services/groups.js'
+import { inviteByTag, revokeInvite, fetchGroupInvites } from '../../services/invites.js'
 import { openSheet, confirmDialog } from '../../components/sheet.js'
+import { openInviteLinkSheet } from '../../components/inviteLinkSheet.js'
 import { showToast } from '../../components/toast.js'
 import { navigate } from '../../router.js'
 import { subHeader } from './common.js'
 import { esc, setLoading, setFieldError, clearErrors } from '../../utils/dom.js'
 import { icon } from '../../utils/icons.js'
 import { initials } from '../../utils/format.js'
+import { formatDateTime } from '../../utils/dates.js'
 import { translateError } from '../../utils/errors.js'
 
 const tagOf = (m) => `${m.username ?? '?'}#${m.discriminator ?? '????'}`
+
+const INVITE_STATUS = {
+  pending: 'Čeká',
+  accepted: 'Přijata',
+  declined: 'Odmítnuta',
+  expired: 'Vypršela',
+  revoked: 'Zneplatněna',
+}
+
+/** Přehled pozvánek pro vlastníka: čekající nahoře (lze zneplatnit), pak posledních 10 ostatních. */
+function invitesSection(invites) {
+  if (!invites.length) return ''
+  const pending = invites.filter((i) => i.status === 'pending')
+  const rest = invites.filter((i) => i.status !== 'pending').slice(0, 10)
+  return `
+    <section class="section">
+      <h2>Pozvánky</h2>
+      <div class="card card--flush list">
+        ${[...pending, ...rest]
+          .map((i) => {
+            const title = i.kind === 'link' ? `Odkaz${i.accepted_by ? ` · použil ${i.accepted_by}` : ''}` : i.invited
+            const sub = [
+              ROLE_LABELS[i.role],
+              INVITE_STATUS[i.status] ?? i.status,
+              i.status === 'pending' ? `platí do ${formatDateTime(i.expires_at)}` : '',
+            ].filter(Boolean).join(' · ')
+            return `
+            <div class="list-row">
+              <div class="list-row__icon">${icon(i.kind === 'link' ? 'link' : 'user-plus', { size: 18 })}</div>
+              <div class="list-row__body">
+                <div class="list-row__title tag">${esc(title)}</div>
+                <div class="list-row__sub">${esc(sub)}</div>
+              </div>
+              ${i.status === 'pending' ? `<button type="button" class="btn btn--sm btn--ghost" data-revoke="${i.id}">Zneplatnit</button>` : ''}
+            </div>`
+          })
+          .join('')}
+      </div>
+    </section>`
+}
 
 /** Správa jednoho člena (jen vlastník): role, předání vlastnictví, odebrání. */
 function openMemberSheet(group, member) {
@@ -87,6 +130,25 @@ function openMemberSheet(group, member) {
 export default function groupView(el) {
   const me = currentUser()?.id
   let redirected = false
+  let invites = []
+  let inviteRole = 'editor'
+  let invitesFor = null
+
+  // pozvánky vidí jen vlastník; načtou se při otevření a po každé akci
+  const refreshInvites = async () => {
+    const group = currentGroup()
+    if (group?.role !== 'owner') {
+      invites = []
+      return
+    }
+    try {
+      invites = await fetchGroupInvites(group.id)
+      invitesFor = group.id
+      draw()
+    } catch {
+      /* offline – seznam pozvánek není nutný */
+    }
+  }
 
   const draw = () => {
     const state = getState()
@@ -98,6 +160,11 @@ export default function groupView(el) {
       return
     }
     const isOwner = group.role === 'owner'
+    if (isOwner && invitesFor !== group.id) {
+      invitesFor = group.id
+      refreshInvites()
+    }
+    const tagValue = el.querySelector('[data-invite-form] input[name=tag]')?.value ?? ''
     el.innerHTML = `
       ${subHeader('Skupina')}
 
@@ -112,6 +179,28 @@ export default function groupView(el) {
               <button type="submit" class="btn btn--primary"><span class="spinner"></span>Uložit název</button>
             </form>`
           : `<div class="card"><h2>${esc(group.name)}</h2><p class="muted">Vaše role: ${ROLE_LABELS[group.role]}</p></div>`
+      }
+
+      ${
+        isOwner
+          ? `<section class="section">
+              <h2>Pozvat člena</h2>
+              <form class="card form" data-invite-form novalidate>
+                <label class="field">
+                  <span class="field__label">Tag uživatele</span>
+                  <input class="input" name="tag" placeholder="jmeno#1234" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(tagValue)}">
+                  <span class="field__hint">Celý tag včetně čísla – najdete ho v Nastavení u profilu.</span>
+                  <span class="field__error" data-error-for="tag"></span>
+                </label>
+                <div class="segmented" role="group" aria-label="Role">
+                  <button type="button" data-invite-role="editor" aria-pressed="${inviteRole === 'editor'}">Editor</button>
+                  <button type="button" data-invite-role="viewer" aria-pressed="${inviteRole === 'viewer'}">Pozorovatel</button>
+                </div>
+                <button type="submit" class="btn btn--primary"><span class="spinner"></span>Poslat pozvánku</button>
+              </form>
+              <button type="button" class="btn btn--block" data-invite-link style="margin-top:12px">${icon('qr-code', { size: 18 })}Pozvat odkazem nebo QR kódem</button>
+            </section>`
+          : ''
       }
 
       <section class="section">
@@ -135,6 +224,8 @@ export default function groupView(el) {
         </div>
       </section>
 
+      ${isOwner ? invitesSection(invites) : ''}
+
       <section class="section">
         ${
           isOwner
@@ -148,6 +239,31 @@ export default function groupView(el) {
   const onClick = async (e) => {
     const group = currentGroup()
     if (!group) return
+    const roleBtn = e.target.closest('[data-invite-role]')
+    if (roleBtn) {
+      inviteRole = roleBtn.dataset.inviteRole
+      el.querySelectorAll('[data-invite-role]').forEach((b) => b.setAttribute('aria-pressed', String(b === roleBtn)))
+      return
+    }
+    if (e.target.closest('[data-invite-link]')) return openInviteLinkSheet(group, { onCreated: refreshInvites })
+    const revoke = e.target.closest('[data-revoke]')
+    if (revoke) {
+      const ok = await confirmDialog({
+        title: 'Zneplatnit pozvánku?',
+        message: 'Pozvánku ani odkaz už nepůjde použít.',
+        confirmLabel: 'Zneplatnit',
+        danger: true,
+      })
+      if (!ok) return
+      try {
+        await revokeInvite(revoke.dataset.revoke)
+        showToast('Pozvánka zneplatněna')
+        await refreshInvites()
+      } catch (err) {
+        showToast(translateError(err))
+      }
+      return
+    }
     const memberRow = e.target.closest('[data-member]')
     if (memberRow) {
       const member = getState().members.find((m) => m.user_id === memberRow.dataset.member)
@@ -191,6 +307,28 @@ export default function groupView(el) {
   }
 
   const onSubmit = async (e) => {
+    const inviteForm = e.target.closest('[data-invite-form]')
+    if (inviteForm) {
+      e.preventDefault()
+      clearErrors(inviteForm)
+      const tag = inviteForm.elements.tag.value.trim()
+      if (!/^[^#\s]+#\d{4}$/.test(tag)) {
+        return setFieldError(inviteForm, 'tag', 'Zadejte celý tag ve tvaru jmeno#1234.')
+      }
+      const button = inviteForm.querySelector('[type="submit"]')
+      setLoading(button, true)
+      try {
+        await inviteByTag(currentGroup().id, tag, inviteRole)
+        inviteForm.elements.tag.value = ''
+        showToast(`Pozvánka pro ${tag} odeslána`)
+        await refreshInvites()
+      } catch (err) {
+        setFieldError(inviteForm, 'tag', translateError(err))
+      } finally {
+        setLoading(button, false)
+      }
+      return
+    }
     const form = e.target.closest('[data-rename]')
     if (!form) return
     e.preventDefault()
