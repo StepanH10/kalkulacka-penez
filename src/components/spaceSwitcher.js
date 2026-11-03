@@ -1,6 +1,7 @@
 import { getState } from '../state/store.js'
 import { currentGroup, canEdit, ROLE_LABELS } from '../state/space.js'
 import { switchSpace, createGroup } from '../services/groups.js'
+import { renderBell } from './notificationPanel.js'
 import { openSheet } from './sheet.js'
 import { showToast } from './toast.js'
 import { esc, setLoading, setFieldError, clearErrors } from '../utils/dom.js'
@@ -9,7 +10,7 @@ import { translateError } from '../utils/errors.js'
 
 const MAX_GROUPS = 5
 
-/** Lišta nad obsahem: aktuální prostor + štítek pro pozorovatele. */
+/** Lišta nad obsahem: aktuální prostor, štítek pro pozorovatele a zvonek s upozorněními. */
 export function renderSpaceBar(state = getState()) {
   const group = currentGroup(state)
   return `
@@ -18,7 +19,10 @@ export function renderSpaceBar(state = getState()) {
       <span class="space-switch__name">${esc(group ? group.name : 'Osobní')}</span>
       ${icon('chevron-down', { size: 16 })}
     </button>
-    ${canEdit(state) ? '' : `<span class="badge">${icon('eye', { size: 14 })}Pouze pro čtení</span>`}`
+    <div class="space-bar__end">
+      ${canEdit(state) ? '' : `<span class="badge">${icon('eye', { size: 14 })}Pouze pro čtení</span>`}
+      ${renderBell(state)}
+    </div>`
 }
 
 function openCreateGroup() {

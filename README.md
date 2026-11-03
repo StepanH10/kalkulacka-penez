@@ -10,6 +10,7 @@ Mobile-first webová aplikace (PWA) pro osobní finance: zapisování výdajů, 
 - Úprava a mazání transakcí, na mobilu swipe doleva = smazat (s „Zpět“)
 - Kategorie s barvou a emoji – vlastní kategorii jde založit přímo při zadávání transakce (tlačítko „+ Vlastní“), správa v Nastavení s přesunem transakcí při mazání
 - Více účtů a převody
+- Upozornění v aplikaci (zvonek): pozvánky, nový člen, výdaje ve skupině, změna role, odebrání; v reálném čase přes Supabase Realtime
 - Pozvánky do skupin podle tagu nebo jednorázovým odkazem s QR kódem (Sdílet, Kopírovat); čekající pozvánky na Přehledu
 - Skupiny (sdílené prostory) s rolemi vlastník / editor / pozorovatel: vlastní účty, transakce, kategorie, rozpočty a cíle; přepínač prostoru nahoře v aplikaci
 - Spořicí cíle s progress barem, vklady a výběry
@@ -107,6 +108,16 @@ src/
 ```
 
 ## Deník změn
+
+### 2026-11-03 – .gitignore
+- Do `.gitignore` přidány `.claude/` a `skills-lock.json` (lokální nastavení nástrojů, nepatří do repozitáře).
+
+### 2026-11-03 – Upozornění: UI (fáze 5)
+- Zvonek vpravo v liště nad obsahem s počtem nepřečtených (9+). Panel se seznamem posledních 50 upozornění, nepřečtená jsou zvýrazněná tečkou, u každého je relativní čas („před 5 minutami“).
+- „Označit vše jako přečtené“ (`update read_at … where read_at is null`). Klik na upozornění ho označí jako přečtené a otevře příslušnou skupinu: výdaj vede na Transakce, nový člen na Nastavení skupiny.
+- Pozvánky mají v panelu přímo tlačítka Přijmout / Odmítnout, dokud pozvánka čeká.
+- Načítání při otevření a návratu do aplikace (`loadAll`). Nová upozornění chodí přes Supabase Realtime (`postgres_changes`, INSERT, filtr na přihlášeného) s krátkým toastem. Podle typu se dočte, co se změnilo: pozvánky, skupiny a role, nebo data zvolené skupiny při novém výdaji.
+- Nové soubory: `src/services/notifications.js` (označení přečtení, Realtime) a `src/components/notificationPanel.js` (texty podle typu, zvonek, panel).
 
 ### 2026-11-03 – Migrace 006: upozornění (fáze 5 – databáze)
 - Tabulka `notifications` (user_id, type, data jsonb, read_at). RLS: každý vidí jen svá upozornění a smí u nich měnit jen `read_at`. Vytvářejí je výhradně triggery.

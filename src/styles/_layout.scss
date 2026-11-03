@@ -238,3 +238,34 @@
   min-height: 100dvh;
   color: var(--text-muted);
 }
+
+.space-bar__end {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  margin-right: -10px;
+}
+
+// Zvonek s počtem nepřečtených upozornění
+.bell {
+  position: relative;
+}
+
+.bell__badge {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--expense);
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--bg);
+}

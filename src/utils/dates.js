@@ -60,6 +60,19 @@ export function formatDate(iso) {
   return iso ? shortFormat.format(parseISODate(iso)) : ''
 }
 
+const relativeFormat = new Intl.RelativeTimeFormat('cs-CZ', { numeric: 'auto' })
+
+/** „před 5 minutami“, „včera“, u starších datum (např. u upozornění). */
+export function formatRelative(timestamp, now = Date.now()) {
+  const diff = (new Date(timestamp).getTime() - now) / 1000
+  const abs = Math.abs(diff)
+  if (abs < 60) return 'právě teď'
+  if (abs < 3600) return relativeFormat.format(Math.round(diff / 60), 'minute')
+  if (abs < 86400) return relativeFormat.format(Math.round(diff / 3600), 'hour')
+  if (abs < 7 * 86400) return relativeFormat.format(Math.round(diff / 86400), 'day')
+  return shortFormat.format(new Date(timestamp))
+}
+
 /** Datum a čas z časového razítka (např. platnost pozvánky). */
 export function formatDateTime(timestamp) {
   return timestamp ? dateTimeFormat.format(new Date(timestamp)) : ''

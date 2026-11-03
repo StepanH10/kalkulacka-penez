@@ -3,6 +3,8 @@ import { subscribe, getState } from '../state/store.js'
 import { openTransactionSheet } from './transactionSheet.js'
 import { renderSpaceBar, openSpacePicker } from './spaceSwitcher.js'
 import { currentGroup, canEdit } from '../state/space.js'
+import { openNotificationPanel } from './notificationPanel.js'
+import { unreadCount } from '../services/notifications.js'
 
 const NAV = [
   ['overview', '/', 'Přehled', 'house'],
@@ -49,7 +51,7 @@ export function ensureShell(root) {
   const renderSpace = () => {
     const state = getState()
     const group = currentGroup(state)
-    const key = `${state.space}|${group?.name}|${group?.role}`
+    const key = `${state.space}|${group?.name}|${group?.role}|${unreadCount(state)}`
     fab.hidden = !canEdit(state)
     if (key === spaceKey) return
     spaceKey = key
@@ -58,6 +60,7 @@ export function ensureShell(root) {
   renderSpace()
   spaceSlot.addEventListener('click', (e) => {
     if (e.target.closest('[data-space-switch]')) openSpacePicker()
+    if (e.target.closest('[data-bell]')) openNotificationPanel()
   })
 
   const unsub = subscribe(() => {

@@ -9,6 +9,8 @@ import { loadAll, processRecurring } from './services/api.js'
 import { startRouter, navigate, consumeReturnPath } from './router.js'
 import { showToast } from './components/toast.js'
 import { watchMissingUsername } from './components/usernameSheet.js'
+import { watchNotifications } from './services/notifications.js'
+import { describeNotification } from './components/notificationPanel.js'
 import { initTheme } from './utils/theme.js'
 import { translateError } from './utils/errors.js'
 import { formatTag } from './utils/format.js'
@@ -83,6 +85,8 @@ async function start() {
 
   startRouter(app, { loadData })
   watchMissingUsername()
+  // nová upozornění v reálném čase → krátký toast
+  watchNotifications((n) => showToast(describeNotification(n).title, { duration: 5000 }))
 
   // Synchronizace mezi zařízeními: obnovit data při návratu do aplikace
   let lastSync = Date.now()

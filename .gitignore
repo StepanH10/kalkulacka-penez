@@ -30,3 +30,7 @@ dist-ssr
 
 # PWA (generuje vite-plugin-pwa)
 dev-dist
+
+# Lokální nastavení nástrojů (necommitovat)
+.claude/
+skills-lock.json
