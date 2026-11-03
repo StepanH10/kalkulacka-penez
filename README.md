@@ -107,6 +107,14 @@ src/
 
 ## Deník změn
 
+### 2026-11-03 – Migrace 005: pozvánky do skupin (fáze 4 – databáze)
+- Tabulka `group_invites`: pozvánka podle tagu (`invited_user_id`), nebo jednorázovým odkazem (`token_hash`). Stavy pending / accepted / declined / expired / revoked, `accepted_by`, `used_at`. Klient do ní nezapisuje, čte jen vlastník skupiny a pozvaný (RLS).
+- Odkaz: token má 64 hex znaků (2× `gen_random_uuid`, kryptograficky bezpečný generátor) a ukládá se jen jeho SHA-256. Platí 24 h, po prvním použití zanikne a vlastník ho může zneplatnit.
+- RPC: `invite_by_tag` (jen přesná shoda přezdívka + číslo, jinak „Uživatel nenalezen.“, platnost 7 dní), `create_invite_link`, `revoke_invite`, `preview_invite_token`, `accept_invite_token`, `accept_invite`, `decline_invite`, `get_my_invites`, `get_group_invites`.
+- Limity v databázi: pozvání podle tagu 10/h, odkazy 10/h, pokusy o token (náhled + přijetí) 20/h. Funkce s limitem vrací při neúspěchu `{ ok: false, message }` místo chyby, aby se pokus nevrátil zpět a limit fungoval i proti hádání.
+- Limity skupiny (10 členů, 5 skupin) při přijetí vrací českou hlášku.
+- Ověřeno v PGlite: nový projekt, migrace 002 → 005 (005 dvakrát) a 35 kontrol se 5 uživateli.
+
 ### 2026-11-03 – Skupiny: UI (fáze 3)
 - Přepínač prostoru nad obsahem každé obrazovky: „Osobní“, moje skupiny s rolí a „Vytvořit skupinu“ (max. 5). Zvolený prostor se pamatuje v localStorage (`kp-space-<uživatel>`). Když uživatele ze skupiny odeberou, aplikace se sama vrátí do osobního prostoru.
 - Store drží data jen zvoleného prostoru: `loadAll` načítá podle `group_id` a ve skupině i členy (`get_group_members`). `createRow` doplní `group_id`. Offline cache je zvlášť pro každý prostor. Přehled, transakce, statistiky, spoření, kategorie, rozpočty i formulář transakce tak pracují s aktuálním prostorem bez dalších úprav.
