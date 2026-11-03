@@ -106,6 +106,20 @@ src/
 
 ## Deník změn
 
+### 2026-11-03 – Migrace 004: skupiny (fáze 2 – databáze a RLS)
+- Nové tabulky `groups` a `group_members` (role owner / editor / viewer, právě jeden owner na skupinu).
+- Datové tabulky dostaly `group_id`. Řádek patří buď uživateli (`user_id`), nebo skupině (`group_id`, `user_id` null). Hlídá to kontrola `*_scope_check`. Stávající osobní data, cizí klíče i RLS politiky se nemění.
+- Paralelní cizí klíče `(x_id, group_id)`: skupinová transakce smí odkazovat jen na účet a kategorii téže skupiny a osobní záznam jen na vlastní.
+- `created_by` u transakcí, převodů a vkladů do spoření (osobní = `user_id`, ve skupině = přihlášený uživatel). Nastavuje ho trigger a nejde přepsat. Stávající řádky dostaly `created_by = user_id`.
+- Triggery `set_row_scope` / `keep_row_scope`: skupinový řádek nemá `user_id` a záznam nejde přesunout mezi osobními daty a skupinou.
+- RLS politiky `*_group_*`: čtou všichni členové, zapisují owner a editor, transakce upravuje autor nebo owner, účty, kategorie, rozpočty, cíle a opakované platby maže jen owner. Viewer nezapisuje nic.
+- Funkce `is_group_member`, `can_edit_group`, `is_group_owner`. RPC `create_group` (skupina, owner, „Společný účet“, výchozí kategorie, limit 5 za den), `transfer_ownership` a `get_group_members` (přezdívky bez e-mailů).
+- Limity triggerem: max. 10 členů ve skupině, max. 5 skupin na uživatele.
+- Smazání účtu vlastníka předá skupinu dalšímu členovi (trigger `on_auth_user_deleting`). Skupina bez dalších členů se smaže i s daty.
+- `process_recurring` zpracuje i skupinové opakované platby (editor / owner).
+- Index `categories_user_type_name_key` nahradily částečné indexy `categories_personal_name_key` a `categories_group_name_key`.
+- Ověřeno v PGlite (PostgreSQL ve WASM): nový projekt, migrace 002 → 004 nad daty, opakované spuštění a 49 kontrol oprávnění se třemi uživateli.
+
 ### 2026-11-03 – Migrace 003: unikátní názvy kategorií
 - `supabase/migrations/003_categories_unique.sql` doplní do existující databáze index `categories_user_type_name_key` na `(user_id, type, lower(name))`. V `schema.sql` už byl, do živé databáze se ale nedostal.
 - Migrace nejdřív zkontroluje duplicity. Pokud nějaké najde, skončí chybou a nic nezmění. Duplicity je nutné vyřešit ručně (přejmenovat, nebo sloučit), automaticky se nic nemaže.

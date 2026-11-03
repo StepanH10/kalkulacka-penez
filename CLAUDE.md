@@ -22,6 +22,7 @@ Bez `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) aplikace zobrazí jen
 - `src/components/sheet.js` – `openSheet` / `confirmDialog` pro všechny formuláře
 - `supabase/schema.sql` – kompletní reference aktuálního stavu DB pro nový projekt od nuly (idempotentně: `if not exists`, `create or replace`)
 - `supabase/migrations/NNN_nazev.sql` – změny nad existující databází s daty (`001` = původní `schema.sql`)
+- Datové řádky patří buď uživateli (`user_id`, `group_id` null), nebo skupině (`group_id`, `user_id` null). Skupinová data hlídají cizí klíče `(x_id, group_id)` a politiky `*_group_*`, přístup přes `is_group_member` / `can_edit_group` / `is_group_owner`. Autora (`created_by`) a rozsah řádku nastavuje databáze triggerem, klient ne.
 
 ## Konvence
 - Styly psát **pouze v SCSS** (`.scss`), žádné vlastní `.css` soubory. Barvy používat přes CSS proměnné z `styles/_tokens.scss`.
