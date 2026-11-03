@@ -23,6 +23,7 @@ Mobile-first webová aplikace (PWA) pro osobní finance: zapisování výdajů, 
 - [Chart.js](https://www.chartjs.org/) – grafy
 - [Lucide](https://lucide.dev/) – ikony, písmo [Inter](https://rsms.me/inter/)
 - [vite-plugin-pwa](https://vite-pwa-org.netlify.app/) – manifest a service worker
+- [Vercel Speed Insights](https://vercel.com/docs/speed-insights) – měření výkonu (Core Web Vitals) na Vercelu
 
 ## Zprovoznění
 
@@ -101,6 +102,10 @@ src/
 ```
 
 ## Deník změn
+
+### 2026-11-03 – Vercel Speed Insights
+- Nainstalován balíček `@vercel/speed-insights`. V `src/main.js` se volá `injectSpeedInsights()`. Projekt je Vite + vanilla JS, proto se nepoužívá komponenta pro Next.js.
+- Data se sbírají jen na nasazení ve Vercelu, kde je potřeba v projektu zapnout **Speed Insights**. Lokálně skript běží v debug režimu a nic neodesílá.
 
 ### 2026-11-01 – Vlastní kategorie přímo při zadávání transakce
 - V bottom sheetu transakce je na konci kategorií tlačítko „+ Vlastní“ (čárkovaný okraj, akcentová barva). Otevře malý formulář přímo v sheetu: název (max. 30 znaků), mřížka 24 emoji, 8 tlumených barev, „Zrušit“ / „Uložit“.
