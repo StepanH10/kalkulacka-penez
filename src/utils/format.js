@@ -48,6 +48,11 @@ export function formatPercent(ratio) {
   return `${Math.round(ratio * 100)} %`
 }
 
+/** Tag uživatele „jana#0482“ (bez přezdívky prázdný řetězec). */
+export function formatTag(profile) {
+  return profile?.username ? `${profile.username}#${profile.discriminator ?? '????'}` : ''
+}
+
 export function initials(name) {
   return (
     String(name || '')

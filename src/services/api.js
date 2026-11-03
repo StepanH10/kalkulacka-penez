@@ -127,10 +127,10 @@ export async function restoreRow(key, row) {
   return data
 }
 
-export async function updateProfile(patch) {
+/** Nastaví nebo změní přezdívku. Číslo (discriminator) přidělí databáze. */
+export async function setUsername(username) {
   ensureOnline()
-  const user = currentUser()
-  const { data, error } = await supabase.from('profiles').update(patch).eq('id', user.id).select().single()
+  const { data, error } = await supabase.rpc('set_username', { p_username: username })
   if (error) throw error
   setState({ profile: data })
   saveCache()

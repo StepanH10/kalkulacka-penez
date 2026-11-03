@@ -7,8 +7,9 @@ let uid = 0
 /**
  * Otevře bottom sheet (na desktopu dialog uprostřed).
  * onMount(bodyEl, close) – připojení posluchačů; vrácená funkce se zavolá při zavření.
+ * dismissible: false – uživatel ho nemůže zavřít (křížek, Escape, klik vedle, stažení), jen kód přes close().
  */
-export function openSheet({ title, body, onMount, onClose }) {
+export function openSheet({ title, body, onMount, onClose, dismissible = true }) {
   const id = `sheet-title-${++uid}`
   const previousFocus = document.activeElement
 
@@ -24,7 +25,7 @@ export function openSheet({ title, body, onMount, onClose }) {
     <div class="sheet__handle"></div>
     <div class="sheet__head">
       <h2 id="${id}">${esc(title)}</h2>
-      <button type="button" class="icon-btn" data-close aria-label="Zavřít">${icon('x')}</button>
+      ${dismissible ? `<button type="button" class="icon-btn" data-close aria-label="Zavřít">${icon('x')}</button>` : ''}
     </div>
     <div class="sheet__body">${body}</div>`
 
@@ -53,18 +54,20 @@ export function openSheet({ title, body, onMount, onClose }) {
   }
 
   const onKey = (e) => {
-    if (e.key === 'Escape') close()
+    if (e.key === 'Escape' && dismissible) close()
   }
   document.addEventListener('keydown', onKey)
-  backdrop.addEventListener('click', close)
-  sheet.querySelector('[data-close]').addEventListener('click', close)
+  if (dismissible) {
+    backdrop.addEventListener('click', close)
+    sheet.querySelector('[data-close]').addEventListener('click', close)
+  }
 
   // Stažení dolů za horní lištu zavře sheet
   const head = sheet.querySelector('.sheet__handle')
   const headBar = sheet.querySelector('.sheet__head')
   let startY = null
   const onDown = (e) => {
-    if (e.pointerType === 'mouse' || e.target.closest('button')) return
+    if (!dismissible || e.pointerType === 'mouse' || e.target.closest('button')) return
     startY = e.clientY
     sheet.style.transition = 'none'
   }
@@ -100,7 +103,7 @@ export function openSheet({ title, body, onMount, onClose }) {
 
   // Fokus synchronně, aby se na iOS otevřela klávesnice
   const autofocus = bodyEl.querySelector('[autofocus]') ?? sheet.querySelector('[data-close]')
-  autofocus.focus({ preventScroll: true })
+  autofocus?.focus({ preventScroll: true })
 
   requestAnimationFrame(() => {
     backdrop.classList.add('is-open')

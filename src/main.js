@@ -8,8 +8,10 @@ import { getState, setState, resetData } from './state/store.js'
 import { loadAll, processRecurring } from './services/api.js'
 import { startRouter, navigate } from './router.js'
 import { showToast } from './components/toast.js'
+import { watchMissingUsername } from './components/usernameSheet.js'
 import { initTheme } from './utils/theme.js'
 import { translateError } from './utils/errors.js'
+import { formatTag } from './utils/format.js'
 
 const app = document.querySelector('#app')
 
@@ -20,11 +22,24 @@ injectSpeedInsights()
 /** Načte data a vytvoří splatné opakované transakce. */
 async function loadData() {
   await loadAll()
+  showNewTag()
   try {
     const created = await processRecurring()
     if (created > 0) showToast(`Zapsáno opakovaných transakcí: ${created}`)
   } catch (err) {
     showToast(translateError(err))
+  }
+}
+
+/** Po registraci ukáže přidělený tag (číslo generuje databáze). */
+function showNewTag() {
+  try {
+    const tag = formatTag(getState().profile)
+    if (!tag || !localStorage.getItem('kp-show-tag')) return
+    localStorage.removeItem('kp-show-tag')
+    showToast(`Vítejte! Váš tag je ${tag}`, { duration: 8000 })
+  } catch {
+    /* nedostupné úložiště */
   }
 }
 
@@ -67,6 +82,7 @@ async function start() {
   })
 
   startRouter(app, { loadData })
+  watchMissingUsername()
 
   // Synchronizace mezi zařízeními: obnovit data při návratu do aplikace
   let lastSync = Date.now()

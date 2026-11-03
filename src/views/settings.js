@@ -1,16 +1,16 @@
 import { getState, subscribe } from '../state/store.js'
-import { updateProfile } from '../services/api.js'
-import { signOut, updatePassword, verifyPassword, updateDisplayName, deleteAccount } from '../services/auth.js'
+import { signOut, updatePassword, verifyPassword, deleteAccount } from '../services/auth.js'
 import { exportJSON, exportCSV, readBackup, importBackup } from '../services/backup.js'
 import { openSheet, confirmDialog } from '../components/sheet.js'
 import { showToast } from '../components/toast.js'
+import { openUsernameSheet } from '../components/usernameSheet.js'
 import { passwordField, bindPasswordToggles } from './authLayout.js'
 import { navigate } from '../router.js'
 import { esc, setLoading, setFieldError, clearErrors } from '../utils/dom.js'
 import { icon } from '../utils/icons.js'
-import { initials } from '../utils/format.js'
+import { initials, formatTag } from '../utils/format.js'
 import { translateError } from '../utils/errors.js'
-import { validateName, validatePassword, validatePasswordConfirm } from '../utils/validation.js'
+import { validatePassword, validatePasswordConfirm } from '../utils/validation.js'
 import { getThemePreference, setThemePreference } from '../utils/theme.js'
 
 const THEMES = [
@@ -24,44 +24,6 @@ const menuLink = (href, ic, label) =>
 
 const menuButton = (action, ic, label, danger = false) =>
   `<button type="button" class="menu-row ${danger ? 'menu-row--danger' : ''}" data-action="${action}">${icon(ic)}<span>${label}</span></button>`
-
-function openNameForm() {
-  const current = getState().profile?.display_name ?? ''
-  openSheet({
-    title: 'Změnit jméno',
-    body: `
-      <form class="form" novalidate>
-        <label class="field">
-          <span class="field__label">Zobrazované jméno</span>
-          <input class="input" name="name" maxlength="60" value="${esc(current)}" autocomplete="name" autofocus>
-          <span class="field__error" data-error-for="name"></span>
-        </label>
-        <div class="form-error" role="alert"></div>
-        <div class="sheet__actions"><button type="submit" class="btn btn--primary"><span class="spinner"></span>Uložit</button></div>
-      </form>`,
-    onMount(body, close) {
-      const form = body.querySelector('form')
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault()
-        clearErrors(form)
-        const name = form.elements.name.value.trim()
-        const error = validateName(name, 'jméno')
-        if (error) return setFieldError(form, 'name', error)
-        const button = form.querySelector('[type="submit"]')
-        setLoading(button, true)
-        try {
-          await updateProfile({ display_name: name })
-          await updateDisplayName(name)
-          showToast('Jméno uloženo')
-          close()
-        } catch (err) {
-          form.querySelector('.form-error').textContent = translateError(err)
-          setLoading(button, false)
-        }
-      })
-    },
-  })
-}
 
 function openPasswordForm() {
   openSheet({
@@ -126,19 +88,21 @@ async function handleImport(file) {
 export default function settingsView(el) {
   const draw = () => {
     const state = getState()
-    const name = state.profile?.display_name || ''
+    const name = state.profile?.username ?? ''
+    const tag = formatTag(state.profile)
     const email = state.session?.user?.email ?? ''
     const theme = getThemePreference()
     el.innerHTML = `
       <header class="page-header"><h1>Nastavení</h1></header>
 
       <section class="card profile-card">
-        <div class="avatar">${esc(initials(name || email))}</div>
+        <div class="avatar">${esc(initials(name || '?'))}</div>
         <div class="list-row__body">
-          <div class="list-row__title">${esc(name || 'Bez jména')}</div>
-          <div class="list-row__sub">${esc(email)}</div>
+          <div class="list-row__title">${esc(name || 'Bez přezdívky')}</div>
+          ${tag ? `<div class="list-row__sub tag">${esc(tag)}</div>` : ''}
         </div>
-        <button type="button" class="icon-btn" data-action="name" aria-label="Změnit jméno">${icon('pencil', { size: 18 })}</button>
+        ${tag ? `<button type="button" class="icon-btn" data-action="copy-tag" aria-label="Kopírovat tag ${esc(tag)}">${icon('copy', { size: 18 })}</button>` : ''}
+        <button type="button" class="icon-btn" data-action="username" aria-label="Změnit přezdívku">${icon('pencil', { size: 18 })}</button>
       </section>
 
       <section class="section">
@@ -171,6 +135,7 @@ export default function settingsView(el) {
       <section class="section">
         <h2>Účet</h2>
         <div class="card card--flush">
+          <div class="menu-row menu-row--static">${icon('at-sign')}<span class="menu-row__text"><small class="muted">Přihlašovací e-mail (vidíte jen vy)</small><span class="menu-row__value">${esc(email)}</span></span></div>
           ${menuButton('password', 'key-round', 'Změnit heslo')}
           ${menuButton('logout', 'log-out', 'Odhlásit se')}
           ${menuButton('delete', 'trash', 'Smazat účet a všechna data', true)}
@@ -188,8 +153,17 @@ export default function settingsView(el) {
     const action = e.target.closest('[data-action]')?.dataset.action
     if (!action) return
     switch (action) {
-      case 'name':
-        return openNameForm()
+      case 'username':
+        return openUsernameSheet()
+      case 'copy-tag': {
+        const tag = formatTag(getState().profile)
+        try {
+          await navigator.clipboard.writeText(tag)
+          return showToast(`Tag ${tag} zkopírován`)
+        } catch {
+          return showToast('Kopírování se nepodařilo. Tag si opište ručně.')
+        }
+      }
       case 'password':
         return openPasswordForm()
       case 'export-json':

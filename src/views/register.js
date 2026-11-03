@@ -1,8 +1,9 @@
 import { authCard, field, passwordField, submitButton, bindPasswordToggles } from './authLayout.js'
 import { signUp } from '../services/auth.js'
+import { usernameField, bindUsernamePreview } from '../components/usernameSheet.js'
 import { navigate } from '../router.js'
 import { setLoading, setFieldError, clearErrors } from '../utils/dom.js'
-import { validateEmail, validatePassword, validatePasswordConfirm, validateName } from '../utils/validation.js'
+import { validateEmail, validatePassword, validatePasswordConfirm, validateUsername } from '../utils/validation.js'
 import { translateError } from '../utils/errors.js'
 
 export default function registerView(root) {
@@ -11,7 +12,7 @@ export default function registerView(root) {
     subtitle: 'Začněte mít přehled o svých penězích',
     content: `
       <form class="form" novalidate>
-        ${field({ name: 'name', label: 'Zobrazované jméno', autocomplete: 'name', placeholder: 'Např. Jana' })}
+        ${usernameField()}
         ${field({ name: 'email', label: 'E-mail', type: 'email', autocomplete: 'email', inputmode: 'email' })}
         ${passwordField({ name: 'password', label: 'Heslo (alespoň 8 znaků)', autocomplete: 'new-password' })}
         ${passwordField({ name: 'confirm', label: 'Potvrzení hesla', autocomplete: 'new-password' })}
@@ -23,17 +24,18 @@ export default function registerView(root) {
 
   const form = root.querySelector('form')
   const offToggle = bindPasswordToggles(root)
+  bindUsernamePreview(form)
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault()
     clearErrors(form)
-    const name = form.elements.name.value.trim()
+    const username = form.elements.username.value.trim()
     const email = form.elements.email.value.trim()
     const password = form.elements.password.value
     const confirm = form.elements.confirm.value
 
     const errors = {
-      name: validateName(name, 'jméno'),
+      username: validateUsername(username),
       email: validateEmail(email),
       password: validatePassword(password),
       confirm: validatePasswordConfirm(password, confirm),
@@ -48,7 +50,13 @@ export default function registerView(root) {
     const button = form.querySelector('[type="submit"]')
     setLoading(button, true)
     try {
-      const { needsConfirmation } = await signUp({ email, password, displayName: name })
+      const { needsConfirmation } = await signUp({ email, password, username })
+      // Číslo k přezdívce přidělí databáze – ukáže se po prvním načtení dat
+      try {
+        localStorage.setItem('kp-show-tag', '1')
+      } catch {
+        /* nevadí */
+      }
       if (needsConfirmation) {
         sessionStorage.setItem(
           'kp-auth-notice',

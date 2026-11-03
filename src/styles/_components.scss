@@ -114,6 +114,17 @@
   color: var(--text-muted);
 }
 
+.field__hint {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+// Tag uživatele „jana#0482“ – čísla zarovnaná, aby se dobře opisovala
+.tag {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
 .field__error {
   min-height: 0;
   font-size: 0.8125rem;
@@ -572,6 +583,29 @@ a.list-row {
   &--danger,
   &--danger > .icon:first-child {
     color: var(--expense);
+  }
+
+  &--static {
+    padding-block: 8px;
+
+    &:hover {
+      background: transparent;
+    }
+  }
+
+  &__text {
+    display: grid;
+    min-width: 0;
+
+    small {
+      font-size: 0.75rem;
+    }
+  }
+
+  &__value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 

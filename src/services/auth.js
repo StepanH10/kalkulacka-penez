@@ -2,12 +2,13 @@ import { supabase } from '../lib/supabase.js'
 import { appError } from '../utils/errors.js'
 import { clearCache, currentUser, resetData, setState } from '../state/store.js'
 
-export async function signUp({ email, password, displayName }) {
+export async function signUp({ email, password, username }) {
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      data: { display_name: displayName },
+      // Přezdívku s náhodným číslem uloží do profilu trigger handle_new_user
+      data: { username, display_name: username },
       emailRedirectTo: `${location.origin}/`,
     },
   })
@@ -56,11 +57,6 @@ export async function verifyPassword(password) {
     }
     throw error
   }
-}
-
-export async function updateDisplayName(displayName) {
-  const { error } = await supabase.auth.updateUser({ data: { display_name: displayName } })
-  if (error) throw error
 }
 
 /** Smaže účet včetně všech dat (funkce delete_user v databázi). */

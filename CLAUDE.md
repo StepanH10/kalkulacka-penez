@@ -20,13 +20,15 @@ Bez `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) aplikace zobrazí jen
 - `src/services/api.js` – `loadAll`, generické `createRow/updateRow/deleteRow/restoreRow` podle klíče stavu (mapování v `TABLES`)
 - `src/views/*` – obrazovka = funkce `(el) => cleanup`; vykreslí HTML, přihlásí se k `subscribe` a vrátí odhlášení
 - `src/components/sheet.js` – `openSheet` / `confirmDialog` pro všechny formuláře
-- `supabase/schema.sql` – jediný zdroj pravdy pro DB; změny schématu psát idempotentně (`if not exists`, `create or replace`)
+- `supabase/schema.sql` – kompletní reference aktuálního stavu DB pro nový projekt od nuly (idempotentně: `if not exists`, `create or replace`)
+- `supabase/migrations/NNN_nazev.sql` – změny nad existující databází s daty (`001` = původní `schema.sql`)
 
 ## Konvence
 - Styly psát **pouze v SCSS** (`.scss`), žádné vlastní `.css` soubory. Barvy používat přes CSS proměnné z `styles/_tokens.scss`.
 - Texty v UI a dokumentace jsou **česky**, částky přes `formatMoney` (cs-CZ, Kč), data přes `utils/dates.js` (lokální YYYY-MM-DD).
 - Uživatelský text vkládaný do HTML šablon vždy escapovat pomocí `esc()`.
-- Chyby pro uživatele vždy přes `translateError()`.
+- Chyby pro uživatele vždy přes `translateError()`. Vlastní chyby v DB funkcích vyhazovat s `errcode = 'KPxxx'` a českou hláškou v `message` (překlad je pak zbytečný).
 - Ikony přes `icon('nazev')` z `utils/icons.js`; novou ikonu Lucide nejdřív přidat do mapy `ICONS`.
 - Dotykové cíle min. 44 px, animace 150–200 ms.
 - **Po každé změně** přidat záznam do sekce „Deník změn“ v `README.md` (datum + co a jak se změnilo).
+- **Změny databáze:** každá další změna = nový soubor `supabase/migrations/NNN_nazev.sql` s dalším pořadovým číslem (002, 003, …) a zároveň stejná úprava v `schema.sql`. Už spuštěné migrace nikdy neupravovat. Migrace musí jít bezpečně spustit nad daty: žádné `drop table`, `truncate` ani `delete`. Případné `drop policy/trigger/function` jen s `if exists` a s komentářem proč. Zabalit do `begin; … commit;`. Nikdy nenavrhovat znovu spustit celé `schema.sql` nad existující databází.

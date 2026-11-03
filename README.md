@@ -3,7 +3,8 @@
 Mobile-first webová aplikace (PWA) pro osobní finance: zapisování výdajů, příjmů a spoření. Uživatelé se registrují a přihlašují, data jsou uložená v Supabase a synchronizují se mezi zařízeními. Aplikaci lze nainstalovat na plochu telefonu a offline zobrazí naposledy načtená data.
 
 ## Funkce
-- Registrace, přihlášení, zapomenuté heslo, změna hesla a jména, smazání účtu včetně dat
+- Registrace, přihlášení, zapomenuté heslo, změna hesla, smazání účtu včetně dat
+- Přezdívky s náhodným čtyřmístným číslem (tag `jana#0482`) – zobrazují se místo e-mailu, změna max. 1× za 30 dní
 - Rychlé přidání transakce tlačítkem **+** (výdaj / příjem / převod mezi účty)
 - Přehled: celkový zůstatek, příjmy a výdaje za měsíc, poslední transakce podle dnů
 - Úprava a mazání transakcí, na mobilu swipe doleva = smazat (s „Zpět“)
@@ -34,7 +35,9 @@ Mobile-first webová aplikace (PWA) pro osobní finance: zapisování výdajů, 
 ### 2. Spuštění databázového schématu
 1. V Supabase otevřete **SQL Editor** → **New query**.
 2. Vložte celý obsah souboru [supabase/schema.sql](supabase/schema.sql) a klikněte na **Run**.
-3. Skript vytvoří tabulky, indexy, RLS politiky, trigger pro výchozí data nového uživatele (účet „Hotovost“ a kategorie) a funkce `process_recurring` a `delete_user`. Spustit ho jde i opakovaně.
+3. Skript vytvoří tabulky, indexy, RLS politiky, trigger pro výchozí data nového uživatele (účet „Hotovost“ a kategorie) a funkce. Obsahuje kompletní aktuální stav databáze, je určený pro **nový projekt od nuly**.
+
+**Existující databáze s daty:** `schema.sql` znovu nespouštějte. Spusťte postupně jen nové soubory ze složky [supabase/migrations/](supabase/migrations/) podle pořadového čísla (`002_…`, `003_…`). Každá migrace jen přidává změny a data nemaže. Už spuštěnou migraci se neupravuje.
 
 ### 3. Nastavení `.env`
 1. V Supabase otevřete **Project Settings → API** (nebo **Connect**).
@@ -102,6 +105,27 @@ src/
 ```
 
 ## Deník změn
+
+### 2026-11-03 – Migrace 003: unikátní názvy kategorií
+- `supabase/migrations/003_categories_unique.sql` doplní do existující databáze index `categories_user_type_name_key` na `(user_id, type, lower(name))`. V `schema.sql` už byl, do živé databáze se ale nedostal.
+- Migrace nejdřív zkontroluje duplicity. Pokud nějaké najde, skončí chybou a nic nezmění. Duplicity je nutné vyřešit ručně (přejmenovat, nebo sloučit), automaticky se nic nemaže.
+
+### 2026-11-03 – Migrace místo opakovaného spouštění schématu
+- Změny fáze 1 jsou v samostatné migraci `supabase/migrations/002_nicknames.sql` (v transakci, bez `drop`, `truncate` a `delete`). Kontroly formátu se přidávají přes `pg_constraint` místo `drop constraint`.
+- `check_rate_limit` už staré záznamy nemaže, jen počítá pokusy v daném časovém okně.
+- `schema.sql` zůstává kompletní referencí pro nový projekt. Konvence pro migrace je v `CLAUDE.md`.
+
+### 2026-11-03 – Přezdívky (fáze 1 sdílených prostorů)
+- `profiles`: nové sloupce `username` (3–20 znaků: písmena bez diakritiky, číslice, `_`, `.`), `discriminator` (4 číslice jako text) a `username_changed_at`. Unikátní index `profiles_tag_key` na `(lower(username), discriminator)`, kontroly formátu a rezervovaných jmen přímo v tabulce.
+- Klient smí v profilu měnit už jen `display_name` (column-level `grant`). Přezdívku a číslo nastavuje výhradně databáze:
+  - `handle_new_user` vezme přezdívku z registrace a přidělí náhodné číslo. Neplatná nebo obsazená přezdívka registraci neshodí, uživatel ji pak doplní v okně.
+  - RPC `set_username(p_username)` ověří formát a rezervovaná jména. Při změně ponechá číslo, pokud je kombinace volná, jinak vybere nové náhodné (`pick_discriminator`, nikdy pořadově, při souběhu zkusí znovu). První nastavení se do limitu nepočítá.
+- Rate limit: tabulka `rate_limits` (bez přístupu pro klienta) a funkce `check_rate_limit(action, max, interval)`. Změna přezdívky max. 1× za 30 dní, při překročení „Příliš mnoho pokusů, zkuste to později.“
+- Chyby z vlastních DB funkcí mají kód `KPxxx` a českou hlášku. `translateError` ji zobrazí beze změny.
+- Registrace: pole „Přezdívka“ místo „Zobrazované jméno“, s živým náhledem `jmeno#????`. Přidělený tag se ukáže v toastu po prvním načtení dat.
+- Uživatel bez přezdívky dostane po přihlášení okno, které nejde zavřít (jen „Odhlásit se“). `openSheet` má novou volbu `dismissible: false`.
+- Nastavení: tag s tlačítkem Kopírovat, změna přezdívky (při zámku ukáže datum další možné změny). Vlastní e-mail je jen v sekci Účet jako „vidíte jen vy“. Pozdrav na Přehledu používá přezdívku.
+- Nová komponenta `src/components/usernameSheet.js`. Odstraněna změna zobrazovaného jména (`updateProfile`, `updateDisplayName`).
 
 ### 2026-11-03 – Vercel Speed Insights
 - Nainstalován balíček `@vercel/speed-insights`. V `src/main.js` se volá `injectSpeedInsights()`. Projekt je Vite + vanilla JS, proto se nepoužívá komponenta pro Next.js.

@@ -17,7 +17,7 @@ export function exportJSON() {
     app: 'kalkulacka-penez',
     version: 1,
     exported_at: new Date().toISOString(),
-    profile: { display_name: state.profile?.display_name ?? '' },
+    profile: { username: state.profile?.username ?? '', discriminator: state.profile?.discriminator ?? '' },
     data,
   }
   downloadFile(`kalkulacka-penez-${today()}.json`, JSON.stringify(payload, null, 2), 'application/json')

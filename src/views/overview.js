@@ -27,7 +27,7 @@ export default function overviewView(el) {
     const { from, to } = monthRange(0)
     const month = totals(transactionsInRange(from, to))
     const balances = accountBalances(state)
-    const name = state.profile?.display_name || state.session?.user?.user_metadata?.display_name || ''
+    const name = state.profile?.username ?? ''
     const alerts = budgetAlerts(state)
 
     el.innerHTML = `

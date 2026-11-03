@@ -42,6 +42,8 @@ export function translateError(error) {
   if (typeof error === 'string') return error
   if (error.czMessage) return error.czMessage
   const code = error.code ?? error.error_code
+  // Vlastní chyby z databázových funkcí (kód KPxxx) už nesou českou hlášku
+  if (typeof code === 'string' && code.startsWith('KP') && error.message) return error.message
   if (code && BY_CODE[code]) return BY_CODE[code]
   const message = String(error.message ?? error.error_description ?? '')
   for (const [pattern, text] of BY_MESSAGE) {

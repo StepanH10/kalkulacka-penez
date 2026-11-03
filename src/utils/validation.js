@@ -26,6 +26,19 @@ export function validateName(value, label = 'jméno') {
   return ''
 }
 
+export const USERNAME_RE = /^[A-Za-z0-9_.]{3,20}$/
+export const RESERVED_USERNAMES = ['admin', 'administrator', 'support', 'system', 'moderator', 'kalkulacka', 'null', 'undefined']
+
+/** Stejná pravidla hlídá i databáze (validate_username). */
+export function validateUsername(value) {
+  const v = String(value || '').trim()
+  if (!v) return 'Zadejte přezdívku.'
+  if (v.length < 3 || v.length > 20) return 'Přezdívka musí mít 3–20 znaků.'
+  if (!USERNAME_RE.test(v)) return 'Použijte jen písmena bez diakritiky, číslice, _ nebo tečku.'
+  if (RESERVED_USERNAMES.includes(v.toLowerCase())) return 'Tuto přezdívku nelze použít.'
+  return ''
+}
+
 export function validateAmount(value, { allowNegative = false } = {}) {
   if (value === '' || value === null || value === undefined) return 'Zadejte částku.'
   if (Number.isNaN(value)) return 'Zadejte platnou částku, např. 1250 nebo 99,90.'
