@@ -1,5 +1,6 @@
 import { esc } from '../../utils/dom.js'
 import { icon } from '../../utils/icons.js'
+import { canEdit } from '../../state/space.js'
 
 export function subHeader(title, action = '') {
   return `
@@ -12,6 +13,8 @@ export function subHeader(title, action = '') {
     </header>`
 }
 
+/** Tlačítko „přidat“ v hlavičce; pozorovatel ho nevidí. */
 export function addButton(label) {
+  if (!canEdit()) return ''
   return `<button type="button" class="btn btn--sm btn--primary" data-add>${icon('plus', { size: 16 })}${esc(label)}</button>`
 }

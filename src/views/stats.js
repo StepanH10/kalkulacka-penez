@@ -1,6 +1,7 @@
 import { getState, subscribe } from '../state/store.js'
 import { transactionsInRange, totals, categoryMap, categoriesByType } from '../state/selectors.js'
 import { donutChart, barChart } from '../components/charts.js'
+import { authorName } from '../state/space.js'
 import { esc } from '../utils/dom.js'
 import { icon } from '../utils/icons.js'
 import { formatMoney } from '../utils/format.js'
@@ -64,6 +65,17 @@ export default function statsView(el) {
       .map(([id, value]) => ({ cat: cats.get(id), value }))
       .sort((a, b) => b.value - a.value)
 
+    // Skupina: výdaje podle členů (autor transakce; kdo odešel = „Bývalý člen“)
+    const byMember = new Map()
+    if (state.space) {
+      for (const t of list) {
+        if (t.type !== 'expense') continue
+        const name = authorName(t.created_by, state)
+        byMember.set(name, (byMember.get(name) ?? 0) + Number(t.amount))
+      }
+    }
+    const memberRows = [...byMember].sort((a, b) => b[1] - a[1])
+
     // Příjmy vs. výdaje po měsících
     const months = barMonths(range)
     const monthly = new Map(months.map((m) => [m, { income: 0, expense: 0 }]))
@@ -121,6 +133,32 @@ export default function statsView(el) {
             : `<div class="empty">${icon('chart-pie', { size: 24 })}<p>V tomto období nejsou žádné výdaje.</p></div>`
         }
       </section>
+
+      ${
+        state.space
+          ? `<section class="section">
+              <h2>Výdaje podle členů</h2>
+              ${
+                memberRows.length
+                  ? `<div class="card stack">
+                      ${memberRows
+                        .map(
+                          ([name, value]) => `
+                        <div class="member-share">
+                          <div class="member-share__top">
+                            <span>${esc(name)}</span>
+                            <span class="num"><strong>${formatMoney(value)}</strong> <span class="muted">${Math.round((value / sum.expense) * 100)} %</span></span>
+                          </div>
+                          <div class="progress"><div class="progress__bar" style="width:${(value / memberRows[0][1]) * 100}%"></div></div>
+                        </div>`,
+                        )
+                        .join('')}
+                    </div>`
+                  : `<div class="empty"><p>V tomto období nejsou žádné výdaje.</p></div>`
+              }
+            </section>`
+          : ''
+      }
 
       <section class="section">
         <h2>Příjmy a výdaje po měsících</h2>

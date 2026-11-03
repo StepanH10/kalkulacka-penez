@@ -1,5 +1,6 @@
 import { getState, setState } from '../state/store.js'
 import { categoryMap, accountMap } from '../state/selectors.js'
+import { canEdit, canModifyEntry, authorName } from '../state/space.js'
 import { deleteRow, restoreRow } from '../services/api.js'
 import { openTransactionSheet } from './transactionSheet.js'
 import { showToast } from './toast.js'
@@ -9,21 +10,22 @@ import { formatMoney } from '../utils/format.js'
 import { formatDayLabel } from '../utils/dates.js'
 import { translateError } from '../utils/errors.js'
 
-function row(item, cats, accs) {
+function row(item, cats, accs, author) {
   if (item.kind === 'transfer') {
     const from = accs.get(item.from_account_id)?.name ?? '?'
     const to = accs.get(item.to_account_id)?.name ?? '?'
+    const sub = [`${from} → ${to}`, author, item.note].filter(Boolean).join(' · ')
     return `
       <div class="list-row__icon">${icon('arrow-left-right', { size: 18 })}</div>
       <div class="list-row__body">
         <div class="list-row__title">Převod</div>
-        <div class="list-row__sub">${esc(from)} → ${esc(to)}${item.note ? ` · ${esc(item.note)}` : ''}</div>
+        <div class="list-row__sub">${esc(sub)}</div>
       </div>
       <div class="list-row__end muted">${formatMoney(item.amount)}</div>`
   }
   const cat = cats.get(item.category_id)
   const isIncome = item.type === 'income'
-  const sub = [accs.size > 1 ? accs.get(item.account_id)?.name : '', item.note].filter(Boolean).join(' · ')
+  const sub = [author, accs.size > 1 ? accs.get(item.account_id)?.name : '', item.note].filter(Boolean).join(' · ')
   return `
     <div class="list-row__icon" style="--row-color:${esc(cat?.color ?? '#8A8A8A')}">${esc(cat?.icon ?? '📦')}</div>
     <div class="list-row__body">
@@ -41,6 +43,8 @@ export function renderFeed(items, emptyText = 'Zatím žádné transakce. Přide
   const state = getState()
   const cats = categoryMap(state)
   const accs = accountMap(state)
+  // ve skupině je u každého záznamu přezdívka autora
+  const author = (item) => (state.space ? authorName(item.created_by, state) : '')
   const groups = new Map()
   for (const item of items) {
     if (!groups.has(item.date)) groups.set(item.date, [])
@@ -60,7 +64,7 @@ export function renderFeed(items, emptyText = 'Zatím žádné transakce. Přide
                 (item) => `
                 <div class="swipe" data-kind="${item.kind}" data-id="${item.id}">
                   <div class="swipe__action">${icon('trash', { size: 18 })}Smazat</div>
-                  <button type="button" class="list-row" data-edit>${row(item, cats, accs)}</button>
+                  <button type="button" class="list-row" data-edit>${row(item, cats, accs, author(item))}</button>
                 </div>`,
               )
               .join('')}
@@ -113,13 +117,17 @@ export function bindFeed(root) {
     }
     const wrap = btn.closest('.swipe')
     const item = findItem(wrap.dataset.kind, wrap.dataset.id)
-    if (item) openTransactionSheet({ item })
+    if (!item || !canEdit()) return
+    if (!canModifyEntry(item)) return showToast('Upravit může jen autor záznamu nebo vlastník skupiny.')
+    openTransactionSheet({ item })
   }
 
   const onDown = (e) => {
     if (e.pointerType === 'mouse') return
     const rowEl = e.target.closest('.swipe .list-row')
     if (!rowEl || !root.contains(rowEl)) return
+    const wrapEl = rowEl.closest('.swipe')
+    if (!canModifyEntry(findItem(wrapEl.dataset.kind, wrapEl.dataset.id))) return
     drag = { rowEl, wrap: rowEl.closest('.swipe'), startX: e.clientX, startY: e.clientY, dx: 0, active: false, id: e.pointerId }
   }
 

@@ -33,6 +33,10 @@ import {
   User,
   Wallet,
   WifiOff,
+  ChevronDown,
+  Crown,
+  UserMinus,
+  Users,
   X,
 } from 'lucide'
 
@@ -71,6 +75,10 @@ const ICONS = {
   user: User,
   wallet: Wallet,
   'wifi-off': WifiOff,
+  'chevron-down': ChevronDown,
+  crown: Crown,
+  'user-minus': UserMinus,
+  users: Users,
   x: X,
 }
 

@@ -1,5 +1,6 @@
 import { getState, subscribe } from '../state/store.js'
 import { goalSaved } from '../state/selectors.js'
+import { canEdit, canManage, canModifyEntry, authorName } from '../state/space.js'
 import { createRow, updateRow, deleteRow } from '../services/api.js'
 import { openSheet, confirmDialog } from '../components/sheet.js'
 import { showToast } from '../components/toast.js'
@@ -122,7 +123,7 @@ function openGoalDetail(goalId) {
             </div>
             <div class="progress"><div class="progress__bar" style="width:${Math.min(100, ratio * 100)}%"></div></div>
 
-            <form class="form" novalidate style="margin-top:12px">
+            ${canEdit() ? `<form class="form" novalidate style="margin-top:12px">
               <div class="segmented" role="group" aria-label="Typ pohybu">
                 <button type="button" data-entry-mode="deposit" aria-pressed="${mode === 'deposit'}">Vklad</button>
                 <button type="button" data-entry-mode="withdraw" aria-pressed="${mode === 'withdraw'}">Výběr</button>
@@ -139,7 +140,7 @@ function openGoalDetail(goalId) {
               </div>
               <span class="field__error" data-error-for="amount"></span>
               <button type="submit" class="btn btn--primary"><span class="spinner"></span>${mode === 'deposit' ? 'Vložit' : 'Vybrat'}</button>
-            </form>
+            </form>` : ''}
 
             <section class="section" style="margin-top:20px">
               <h3 style="margin-bottom:8px">Historie</h3>
@@ -151,10 +152,10 @@ function openGoalDetail(goalId) {
                       <div class="list-row">
                         <div class="list-row__body">
                           <div class="list-row__title">${Number(en.amount) > 0 ? 'Vklad' : 'Výběr'}</div>
-                          <div class="list-row__sub">${formatDate(en.date)}</div>
+                          <div class="list-row__sub">${[formatDate(en.date), getState().space ? authorName(en.created_by) : ''].filter(Boolean).map(esc).join(' · ')}</div>
                         </div>
                         <div class="list-row__end ${Number(en.amount) > 0 ? 'income' : 'expense'}">${formatMoney(en.amount, { sign: true })}</div>
-                        <button type="button" class="icon-btn" data-delete-entry="${en.id}" aria-label="Smazat pohyb">${icon('trash', { size: 18 })}</button>
+                        ${canModifyEntry(en) ? `<button type="button" class="icon-btn" data-delete-entry="${en.id}" aria-label="Smazat pohyb">${icon('trash', { size: 18 })}</button>` : ''}
                       </div>`,
                       )
                       .join('')}</div>`
@@ -162,10 +163,14 @@ function openGoalDetail(goalId) {
               }
             </section>
 
-            <div class="sheet__actions">
-              <button type="button" class="btn btn--danger" data-delete-goal>Smazat cíl</button>
-              <button type="button" class="btn" data-edit-goal>${icon('pencil', { size: 16 })}Upravit</button>
-            </div>
+            ${
+              canEdit()
+                ? `<div class="sheet__actions">
+                    ${canManage() ? '<button type="button" class="btn btn--danger" data-delete-goal>Smazat cíl</button>' : ''}
+                    <button type="button" class="btn" data-edit-goal>${icon('pencil', { size: 16 })}Upravit</button>
+                  </div>`
+                : ''
+            }
           </div>`
       }
       draw()
@@ -249,7 +254,7 @@ export default function savingsView(el) {
     el.innerHTML = `
       <header class="page-header">
         <h1>Spoření</h1>
-        <button type="button" class="btn btn--sm btn--primary" data-new-goal>${icon('plus', { size: 16 })}Nový cíl</button>
+        ${canEdit(state) ? `<button type="button" class="btn btn--sm btn--primary" data-new-goal>${icon('plus', { size: 16 })}Nový cíl</button>` : ''}
       </header>
       ${
         state.goals.length

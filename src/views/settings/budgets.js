@@ -4,6 +4,7 @@ import { createRow, updateRow, deleteRow } from '../../services/api.js'
 import { openSheet, confirmDialog } from '../../components/sheet.js'
 import { showToast } from '../../components/toast.js'
 import { subHeader, addButton } from './common.js'
+import { canEdit, canManage } from '../../state/space.js'
 import { esc, setLoading, setFieldError, clearErrors } from '../../utils/dom.js'
 import { icon } from '../../utils/icons.js'
 import { formatMoney, formatPercent, parseAmount, amountToInput } from '../../utils/format.js'
@@ -36,7 +37,7 @@ function openBudgetForm(budget = null) {
         <p class="muted" style="font-size:.8125rem">Upozorníme vás při využití 80 % a 100 % limitu.</p>
         <div class="form-error" role="alert"></div>
         <div class="sheet__actions">
-          ${budget ? '<button type="button" class="btn btn--danger" data-delete>Smazat</button>' : ''}
+          ${budget && canManage() ? '<button type="button" class="btn btn--danger" data-delete>Smazat</button>' : ''}
           <button type="submit" class="btn btn--primary"><span class="spinner"></span>Uložit</button>
         </div>
       </form>`,
@@ -108,6 +109,7 @@ export default function budgetsView(el) {
   }
 
   const onClick = (e) => {
+    if (!canEdit()) return
     if (e.target.closest('[data-add]')) return openBudgetForm()
     const row = e.target.closest('[data-budget]')
     if (row) openBudgetForm(getState().budgets.find((b) => b.id === row.dataset.budget))

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase.js'
-import { getState, setState, saveCache, loadCache, currentUser } from '../state/store.js'
+import { getState, setState, saveCache, loadCache, clearCache, currentUser, emptyData } from '../state/store.js'
+import { showToast } from '../components/toast.js'
 import { appError } from '../utils/errors.js'
 import { today } from '../utils/dates.js'
 
@@ -16,13 +17,33 @@ export const TABLES = {
 }
 
 const PAGE = 1000
+const SPACE_KEY = (userId) => `kp-space-${userId}`
 
-async function fetchAll(table, order = 'created_at') {
+/** Zvolený prostor uložený v prohlížeči (null = osobní). */
+export function readStoredSpace(userId) {
+  try {
+    return localStorage.getItem(SPACE_KEY(userId)) || null
+  } catch {
+    return null
+  }
+}
+
+export function storeSpace(userId, space) {
+  try {
+    if (space) localStorage.setItem(SPACE_KEY(userId), space)
+    else localStorage.removeItem(SPACE_KEY(userId))
+  } catch {
+    /* nevadí */
+  }
+}
+
+/** Řádky jen aktuálního prostoru: osobní (group_id null) nebo jedné skupiny. */
+async function fetchAll(table, order, space) {
   const rows = []
   for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
+    let query = supabase.from(table).select('*')
+    query = space ? query.eq('group_id', space) : query.is('group_id', null)
+    const { data, error } = await query
       .order(order, { ascending: true })
       .order('id', { ascending: true })
       .range(from, from + PAGE - 1)
@@ -32,33 +53,78 @@ async function fetchAll(table, order = 'created_at') {
   }
 }
 
-let loading = null
+async function fetchGroups(userId) {
+  const { data, error } = await supabase
+    .from('group_members')
+    .select('role, groups(id, name, owner_id, created_at)')
+    .eq('user_id', userId)
+  if (error) throw error
+  return data
+    .filter((m) => m.groups)
+    .map((m) => ({ ...m.groups, role: m.role }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'cs'))
+}
 
-/** Načte všechna data uživatele. Bez připojení použije poslední uloženou cache. */
+export async function fetchMembers(groupId) {
+  const { data, error } = await supabase.rpc('get_group_members', { p_group: groupId })
+  if (error) throw error
+  return data ?? []
+}
+
+let loading = null
+let loadingSpace
+let loadSeq = 0
+
+/**
+ * Načte profil, seznam skupin a data aktuálního prostoru.
+ * Bez připojení použije poslední uloženou cache prostoru.
+ */
 export function loadAll() {
-  if (loading) return loading
-  loading = (async () => {
-    const user = currentUser()
-    if (!user) return
+  const user = currentUser()
+  if (!user) return Promise.resolve()
+  const requested = getState().space === undefined ? readStoredSpace(user.id) : getState().space
+  if (loading && loadingSpace === requested) return loading
+  const seq = ++loadSeq
+  loadingSpace = requested
+
+  const run = (async () => {
+    let space = requested
     try {
-      const [profile, ...lists] = await Promise.all([
+      const [profile, groups] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
-        ...Object.values(TABLES).map((t) => fetchAll(t, ['transactions', 'transfers', 'savings_entries'].includes(t) ? 'date' : 'created_at')),
+        fetchGroups(user.id),
       ])
       if (profile.error) throw profile.error
+      // ze skupiny mě mezitím odebrali nebo zanikla → zpět do osobního prostoru
+      const lost = space && !groups.some((g) => g.id === space)
+      if (lost) {
+        space = null
+        storeSpace(user.id, null)
+        clearCache(user.id, requested)
+      }
+      const [lists, members] = await Promise.all([
+        Promise.all(
+          Object.values(TABLES).map((t) => fetchAll(t, ['transactions', 'transfers', 'savings_entries'].includes(t) ? 'date' : 'created_at', space)),
+        ),
+        space ? fetchMembers(space) : [],
+      ])
+      if (seq !== loadSeq) return // mezitím se přepnul prostor
       const data = Object.fromEntries(Object.keys(TABLES).map((k, i) => [k, lists[i]]))
-      setState({ profile: profile.data, ...data, loaded: true, offline: false })
+      setState({ profile: profile.data, groups, members, space, ...data, loaded: true, offline: false })
       saveCache()
+      if (lost) showToast('Skupina už pro vás není dostupná. Přepnuto na osobní prostor.', { duration: 6000 })
     } catch (error) {
-      const cached = loadCache(user.id)
+      if (seq !== loadSeq) return
+      const cached = loadCache(user.id, space)
       if (!cached) throw error
       const { savedAt: _savedAt, ...data } = cached
-      setState({ ...data, loaded: true, offline: true })
+      setState({ ...emptyData(), members: [], ...data, space, loaded: true, offline: true })
     }
   })().finally(() => {
-    loading = null
+    if (loading === run) loading = null
   })
-  return loading
+  loading = run
+  return run
 }
 
 function ensureOnline() {
@@ -74,7 +140,8 @@ export async function createRow(key, row) {
   ensureOnline()
   const { data, error } = await supabase
     .from(TABLES[key])
-    .insert({ ...row, user_id: currentUser().id })
+    // ve skupině přepíše user_id na null databáze (trigger set_row_scope)
+    .insert({ ...row, user_id: currentUser().id, group_id: getState().space ?? null })
     .select()
     .single()
   if (error) throw error

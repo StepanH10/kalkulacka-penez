@@ -125,7 +125,7 @@ export function confirmDialog({ title, message, confirmLabel = 'Potvrdit', dange
           ${
             requireText
               ? `<label class="field"><span class="field__label">Pro potvrzení napište <strong>${esc(requireText)}</strong></span>
-                 <input class="input" name="confirm" autocomplete="off" autocapitalize="characters"></label>`
+                 <input class="input" name="confirm" autocomplete="off" ${requireText === requireText.toUpperCase() ? 'autocapitalize="characters"' : ''}></label>`
               : ''
           }
           <div class="sheet__actions">
@@ -137,7 +137,8 @@ export function confirmDialog({ title, message, confirmLabel = 'Potvrdit', dange
         const form = body.querySelector('form')
         const submit = form.querySelector('[type="submit"]')
         form.elements.confirm?.addEventListener('input', (e) => {
-          submit.disabled = e.target.value.trim().toUpperCase() !== requireText
+          // bez ohledu na velikost písmen (např. název skupiny)
+          submit.disabled = e.target.value.trim().toLocaleLowerCase('cs') !== requireText.trim().toLocaleLowerCase('cs')
         })
         body.querySelector('[data-cancel]').addEventListener('click', close)
         form.addEventListener('submit', (e) => {

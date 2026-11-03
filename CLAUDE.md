@@ -17,6 +17,9 @@ Bez `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) aplikace zobrazí jen
 - `src/router.js` – History API router; trasy mají `auth` (jen přihlášení) nebo `guest` (jen nepřihlášení). Chráněné obrazovky se vykreslují do shellu (`components/shell.js`).
 - `src/state/store.js` – globální stav (`getState`, `setState`, `subscribe`) + offline cache v localStorage
 - `src/state/selectors.js` – odvozené výpočty (zůstatky, součty, rozpočty, feed)
+- `src/state/space.js` – aktuální prostor (osobní / skupina) a oprávnění: `canEdit`, `canManage`, `canModifyEntry`, `authorName`. Store drží vždy data **jen zvoleného prostoru** (`state.space`: null = osobní, jinak id skupiny). `loadAll` filtruje podle `group_id` a `createRow` doplní `group_id` sám, takže obrazovky prostor neřeší.
+- `src/services/groups.js` – přepnutí prostoru, vytvoření / přejmenování / smazání skupiny, role, odebrání, opuštění, předání vlastnictví
+- Nová editační akce v UI = skrýt ji podle `canEdit()` / `canManage()` / `canModifyEntry()` (databáze to hlídá vždy, UI jen nenabízí, co neprojde).
 - `src/services/api.js` – `loadAll`, generické `createRow/updateRow/deleteRow/restoreRow` podle klíče stavu (mapování v `TABLES`)
 - `src/views/*` – obrazovka = funkce `(el) => cleanup`; vykreslí HTML, přihlásí se k `subscribe` a vrátí odhlášení
 - `src/components/sheet.js` – `openSheet` / `confirmDialog` pro všechny formuláře

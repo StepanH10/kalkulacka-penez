@@ -2,6 +2,7 @@ import { openSheet, confirmDialog } from './sheet.js'
 import { showToast } from './toast.js'
 import { getState } from '../state/store.js'
 import { categoriesByType, spentInMonth, categoryMap } from '../state/selectors.js'
+import { canEdit, canModifyEntry } from '../state/space.js'
 import { createRow, updateRow } from '../services/api.js'
 import { deleteWithUndo } from './feed.js'
 import { categoryFields, bindCategoryPickers, categoryNameError } from './categoryFields.js'
@@ -106,6 +107,10 @@ export function openTransactionSheet({ item = null, mode: initialMode } = {}) {
   const availableModes = isEdit ? MODES.filter(([m]) => (mode === 'transfer' ? m === 'transfer' : m !== 'transfer')) : MODES
   const title = isEdit ? (mode === 'transfer' ? 'Upravit převod' : 'Upravit transakci') : 'Nová transakce'
 
+  if (!canEdit(state)) {
+    showToast('V této skupině máte jen právo čtení.')
+    return
+  }
   if (!state.accounts.length) {
     showToast('Nejdřív si v Nastavení vytvořte účet.')
     return
@@ -170,7 +175,7 @@ export function openTransactionSheet({ item = null, mode: initialMode } = {}) {
         <div class="form-error" role="alert"></div>
 
         <div class="sheet__actions">
-          ${isEdit ? '<button type="button" class="btn btn--danger" data-delete>Smazat</button>' : ''}
+          ${isEdit && canModifyEntry(item) ? '<button type="button" class="btn btn--danger" data-delete>Smazat</button>' : ''}
           <button type="submit" class="btn btn--primary"><span class="spinner"></span>Uložit</button>
         </div>
       </form>`,

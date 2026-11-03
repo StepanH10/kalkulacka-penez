@@ -131,6 +131,26 @@
   font-size: 1.125rem;
 }
 
+.avatar--sm {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  font-size: 0.875rem;
+}
+
+// Skupina: rozpad výdajů podle členů
+.member-share {
+  display: grid;
+  gap: 6px;
+}
+
+.member-share__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9375rem;
+}
+
 .budget-row {
   display: grid;
   gap: 8px;

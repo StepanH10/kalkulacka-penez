@@ -10,6 +10,7 @@ Mobile-first webová aplikace (PWA) pro osobní finance: zapisování výdajů, 
 - Úprava a mazání transakcí, na mobilu swipe doleva = smazat (s „Zpět“)
 - Kategorie s barvou a emoji – vlastní kategorii jde založit přímo při zadávání transakce (tlačítko „+ Vlastní“), správa v Nastavení s přesunem transakcí při mazání
 - Více účtů a převody
+- Skupiny (sdílené prostory) s rolemi vlastník / editor / pozorovatel: vlastní účty, transakce, kategorie, rozpočty a cíle; přepínač prostoru nahoře v aplikaci
 - Spořicí cíle s progress barem, vklady a výběry
 - Statistiky: donut výdajů podle kategorií, sloupcový graf příjmů a výdajů po měsících, filtr období a kategorie
 - Měsíční rozpočty s upozorněním při 80 % a 100 %
@@ -105,6 +106,16 @@ src/
 ```
 
 ## Deník změn
+
+### 2026-11-03 – Skupiny: UI (fáze 3)
+- Přepínač prostoru nad obsahem každé obrazovky: „Osobní“, moje skupiny s rolí a „Vytvořit skupinu“ (max. 5). Zvolený prostor se pamatuje v localStorage (`kp-space-<uživatel>`). Když uživatele ze skupiny odeberou, aplikace se sama vrátí do osobního prostoru.
+- Store drží data jen zvoleného prostoru: `loadAll` načítá podle `group_id` a ve skupině i členy (`get_group_members`). `createRow` doplní `group_id`. Offline cache je zvlášť pro každý prostor. Přehled, transakce, statistiky, spoření, kategorie, rozpočty i formulář transakce tak pracují s aktuálním prostorem bez dalších úprav.
+- Oprávnění v `src/state/space.js`. Pozorovatel nevidí tlačítko +, přidávání ani úpravy a v liště má štítek „Pouze pro čtení“. Editor upravuje a maže jen vlastní transakce, převody a vklady. Mazat účty, kategorie, rozpočty, cíle a opakované platby může jen vlastník.
+- Ve skupině je u transakcí, převodů a vkladů přezdívka autora. Kdo už není členem, zobrazí se jako „Bývalý člen“.
+- Statistiky skupiny mají navíc sekci „Výdaje podle členů“ (částka, podíl, pruh).
+- Nastavení → Skupina (`/settings/group`). Vlastník: přejmenování, členové s volbou role Editor / Pozorovatel, předání vlastnictví, odebrání člena, smazání skupiny s potvrzením přepsáním názvu. Ostatní: seznam členů a „Opustit skupinu“. Import zálohy je ve skupině skrytý.
+- `confirmDialog({ requireText })` porovnává text bez ohledu na velikost písmen (kvůli názvu skupiny).
+- Bez změny databáze, používá migraci 004.
 
 ### 2026-11-03 – Migrace 004: skupiny (fáze 2 – databáze a RLS)
 - Nové tabulky `groups` a `group_members` (role owner / editor / viewer, právě jeden owner na skupinu).

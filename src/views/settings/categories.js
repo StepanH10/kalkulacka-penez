@@ -5,6 +5,7 @@ import { openSheet, confirmDialog } from '../../components/sheet.js'
 import { showToast } from '../../components/toast.js'
 import { categoryFields, bindCategoryPickers, categoryNameError } from '../../components/categoryFields.js'
 import { subHeader, addButton } from './common.js'
+import { canEdit, canManage } from '../../state/space.js'
 import { esc, setLoading, setFieldError, clearErrors } from '../../utils/dom.js'
 import { icon } from '../../utils/icons.js'
 import { translateError } from '../../utils/errors.js'
@@ -90,7 +91,7 @@ function openCategoryForm(category = null, defaultType = 'expense') {
         ${categoryFields({ name: category?.name, icon: category?.icon, color: category?.color, autofocus: true })}
         <div class="form-error" role="alert"></div>
         <div class="sheet__actions">
-          ${category ? '<button type="button" class="btn btn--danger" data-delete>Smazat</button>' : ''}
+          ${category && canManage() ? '<button type="button" class="btn btn--danger" data-delete>Smazat</button>' : ''}
           <button type="submit" class="btn btn--primary"><span class="spinner"></span>Uložit</button>
         </div>
       </form>`,
@@ -178,6 +179,7 @@ export default function categoriesView(el) {
       type = tab.dataset.tab
       return draw()
     }
+    if (!canEdit()) return
     if (e.target.closest('[data-add]')) return openCategoryForm(null, type)
     const row = e.target.closest('[data-category]')
     if (row) openCategoryForm(getState().categories.find((c) => c.id === row.dataset.category))

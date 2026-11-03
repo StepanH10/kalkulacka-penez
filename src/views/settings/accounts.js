@@ -5,6 +5,7 @@ import { openSheet, confirmDialog } from '../../components/sheet.js'
 import { openTransactionSheet } from '../../components/transactionSheet.js'
 import { showToast } from '../../components/toast.js'
 import { subHeader, addButton } from './common.js'
+import { canEdit, canManage } from '../../state/space.js'
 import { esc, setLoading, setFieldError, clearErrors } from '../../utils/dom.js'
 import { icon } from '../../utils/icons.js'
 import { formatMoney } from '../../utils/format.js'
@@ -40,7 +41,7 @@ function openAccountForm(account = null) {
         ${account ? '' : '<p class="muted" style="font-size:.8125rem">Počáteční zůstatek zadejte jako příjem na tento účet.</p>'}
         <div class="form-error" role="alert"></div>
         <div class="sheet__actions">
-          ${account ? '<button type="button" class="btn btn--danger" data-delete>Smazat</button>' : ''}
+          ${account && canManage() ? '<button type="button" class="btn btn--danger" data-delete>Smazat</button>' : ''}
           <button type="submit" class="btn btn--primary"><span class="spinner"></span>Uložit</button>
         </div>
       </form>`,
@@ -110,15 +111,16 @@ export default function accountsView(el) {
           )
           .join('')}
       </div>
-      <section class="section">
+      ${canEdit(state) ? `<section class="section">
         <button type="button" class="btn btn--block" data-transfer ${state.accounts.length < 2 ? 'disabled' : ''}>
           ${icon('arrow-left-right', { size: 18 })}Převod mezi účty
         </button>
         ${state.accounts.length < 2 ? '<p class="muted" style="margin-top:8px;font-size:.8125rem;text-align:center">Pro převody přidejte další účet.</p>' : ''}
-      </section>`
+      </section>` : ''}`
   }
 
   const onClick = (e) => {
+    if (!canEdit()) return
     if (e.target.closest('[data-add]')) return openAccountForm()
     if (e.target.closest('[data-transfer]')) return openTransactionSheet({ mode: 'transfer' })
     const row = e.target.closest('[data-account]')

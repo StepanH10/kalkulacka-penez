@@ -4,6 +4,7 @@ import { exportJSON, exportCSV, readBackup, importBackup } from '../services/bac
 import { openSheet, confirmDialog } from '../components/sheet.js'
 import { showToast } from '../components/toast.js'
 import { openUsernameSheet } from '../components/usernameSheet.js'
+import { currentGroup, ROLE_LABELS } from '../state/space.js'
 import { passwordField, bindPasswordToggles } from './authLayout.js'
 import { navigate } from '../router.js'
 import { esc, setLoading, setFieldError, clearErrors } from '../utils/dom.js'
@@ -91,6 +92,7 @@ export default function settingsView(el) {
     const name = state.profile?.username ?? ''
     const tag = formatTag(state.profile)
     const email = state.session?.user?.email ?? ''
+    const group = currentGroup(state)
     const theme = getThemePreference()
     el.innerHTML = `
       <header class="page-header"><h1>Nastavení</h1></header>
@@ -105,6 +107,17 @@ export default function settingsView(el) {
         <button type="button" class="icon-btn" data-action="username" aria-label="Změnit přezdívku">${icon('pencil', { size: 18 })}</button>
       </section>
 
+      ${
+        group
+          ? `<section class="section">
+              <h2>Skupina</h2>
+              <div class="card card--flush">
+                <a class="menu-row" href="/settings/group" data-link>${icon('users')}<span class="menu-row__text"><span>${esc(group.name)}</span><small class="muted">${ROLE_LABELS[group.role]} · ${state.members.length} ${state.members.length === 1 ? 'člen' : state.members.length < 5 ? 'členové' : 'členů'}</small></span>${icon('chevron-right', { size: 18 })}</a>
+              </div>
+            </section>`
+          : ''
+      }
+
       <section class="section">
         <h2>Vzhled</h2>
         <div class="segmented" role="group" aria-label="Motiv">
@@ -113,7 +126,7 @@ export default function settingsView(el) {
       </section>
 
       <section class="section">
-        <h2>Správa</h2>
+        <h2>${group ? `Správa skupiny „${esc(group.name)}“` : 'Správa'}</h2>
         <div class="card card--flush">
           ${menuLink('/settings/accounts', 'wallet', 'Účty a převody')}
           ${menuLink('/settings/categories', 'tag', 'Kategorie')}
@@ -126,7 +139,7 @@ export default function settingsView(el) {
         <h2>Data</h2>
         <div class="card card--flush">
           ${menuButton('export-json', 'file-json', 'Exportovat zálohu (JSON)')}
-          ${menuButton('import-json', 'upload', 'Importovat zálohu (JSON)')}
+          ${group ? '' : menuButton('import-json', 'upload', 'Importovat zálohu (JSON)')}
           ${menuButton('export-csv', 'file-spreadsheet', 'Exportovat transakce (CSV)')}
         </div>
         <input type="file" accept="application/json,.json" hidden data-import-file>

@@ -452,6 +452,30 @@
   }
 }
 
+// Vybraná položka v seznamu (např. aktuální prostor)
+.list-row__check {
+  display: grid;
+  color: var(--accent);
+}
+
+.list-row[aria-pressed='true'] .list-row__title {
+  font-weight: 600;
+}
+
+// Štítek, např. „Pouze pro čtení“
+.badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
 a.list-row {
   color: inherit;
 }

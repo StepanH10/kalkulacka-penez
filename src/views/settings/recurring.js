@@ -4,6 +4,7 @@ import { createRow, updateRow, deleteRow, processRecurring } from '../../service
 import { openSheet, confirmDialog } from '../../components/sheet.js'
 import { showToast } from '../../components/toast.js'
 import { subHeader, addButton } from './common.js'
+import { canEdit, canManage } from '../../state/space.js'
 import { esc, setLoading, setFieldError, clearErrors } from '../../utils/dom.js'
 import { icon } from '../../utils/icons.js'
 import { formatMoney, parseAmount, amountToInput } from '../../utils/format.js'
@@ -72,7 +73,7 @@ function openRecurringForm(rec = null) {
         }
         <div class="form-error" role="alert"></div>
         <div class="sheet__actions">
-          ${rec ? '<button type="button" class="btn btn--danger" data-delete>Smazat</button>' : ''}
+          ${rec && canManage() ? '<button type="button" class="btn btn--danger" data-delete>Smazat</button>' : ''}
           <button type="submit" class="btn btn--primary"><span class="spinner"></span>Uložit</button>
         </div>
       </form>`,
@@ -182,6 +183,7 @@ export default function recurringView(el) {
   }
 
   const onClick = (e) => {
+    if (!canEdit()) return
     if (e.target.closest('[data-add]')) return openRecurringForm()
     const row = e.target.closest('[data-recurring]')
     if (row) openRecurringForm(getState().recurring.find((r) => r.id === row.dataset.recurring))

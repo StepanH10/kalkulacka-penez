@@ -1,6 +1,8 @@
 import { icon } from '../utils/icons.js'
 import { subscribe, getState } from '../state/store.js'
 import { openTransactionSheet } from './transactionSheet.js'
+import { renderSpaceBar, openSpacePicker } from './spaceSwitcher.js'
+import { currentGroup, canEdit } from '../state/space.js'
 
 const NAV = [
   ['overview', '/', 'Přehled', 'house'],
@@ -24,6 +26,7 @@ export function ensureShell(root) {
         ).join('')}
       </nav>
       <main class="main">
+        <div class="space-bar" data-space-bar></div>
         <div data-offline></div>
         <div data-view></div>
       </main>
@@ -38,7 +41,29 @@ export function ensureShell(root) {
       : ''
   }
   renderOffline()
-  const unsub = subscribe(renderOffline)
+
+  // Přepínač prostoru a tlačítko + (pozorovatel nemůže přidávat)
+  const spaceSlot = root.querySelector('[data-space-bar]')
+  const fab = root.querySelector('.fab')
+  let spaceKey = ''
+  const renderSpace = () => {
+    const state = getState()
+    const group = currentGroup(state)
+    const key = `${state.space}|${group?.name}|${group?.role}`
+    fab.hidden = !canEdit(state)
+    if (key === spaceKey) return
+    spaceKey = key
+    spaceSlot.innerHTML = renderSpaceBar(state)
+  }
+  renderSpace()
+  spaceSlot.addEventListener('click', (e) => {
+    if (e.target.closest('[data-space-switch]')) openSpacePicker()
+  })
+
+  const unsub = subscribe(() => {
+    renderOffline()
+    renderSpace()
+  })
   window.addEventListener('online', renderOffline)
   window.addEventListener('offline', renderOffline)
   root.querySelector('.fab').addEventListener('click', () => openTransactionSheet())

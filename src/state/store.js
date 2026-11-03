@@ -7,6 +7,10 @@ const emptyData = () => Object.fromEntries(DATA_KEYS.map((k) => [k, []]))
 let state = {
   session: null,
   profile: null,
+  // undefined = ještě nevybráno (načte se z localStorage), null = osobní, jinak id skupiny
+  space: undefined,
+  groups: [], // moje skupiny včetně mé role
+  members: [], // členové aktuální skupiny (přezdívky)
   ...emptyData(),
   loaded: false,
   offline: false,
@@ -29,39 +33,46 @@ export function subscribe(fn) {
 }
 
 export function resetData() {
-  setState({ profile: null, ...emptyData(), loaded: false, offline: false })
+  setState({ profile: null, space: undefined, groups: [], members: [], ...emptyData(), loaded: false, offline: false })
 }
+
+export { emptyData }
 
 export function currentUser() {
   return state.session?.user ?? null
 }
 
-const cacheKey = (userId) => `kp-cache-${userId}`
+// Osobní prostor má původní klíč, skupiny vlastní (offline data zvlášť pro každý prostor)
+const cacheKey = (userId, space = null) => (space ? `kp-cache-${userId}-${space}` : `kp-cache-${userId}`)
 
 export function saveCache() {
   const user = currentUser()
-  if (!user) return
-  const snapshot = { profile: state.profile, savedAt: Date.now() }
+  if (!user || state.space === undefined) return
+  const snapshot = { profile: state.profile, groups: state.groups, members: state.members, savedAt: Date.now() }
   DATA_KEYS.forEach((k) => (snapshot[k] = state[k]))
   try {
-    localStorage.setItem(cacheKey(user.id), JSON.stringify(snapshot))
+    localStorage.setItem(cacheKey(user.id, state.space), JSON.stringify(snapshot))
   } catch {
     /* plné úložiště – cache je jen doplněk */
   }
 }
 
-export function loadCache(userId) {
+export function loadCache(userId, space = null) {
   try {
-    const raw = localStorage.getItem(cacheKey(userId))
+    const raw = localStorage.getItem(cacheKey(userId, space))
     return raw ? JSON.parse(raw) : null
   } catch {
     return null
   }
 }
 
-export function clearCache(userId) {
+/** Smaže cache prostoru, bez `space` všechny prostory uživatele. */
+export function clearCache(userId, space) {
   try {
-    localStorage.removeItem(cacheKey(userId))
+    if (space !== undefined) return localStorage.removeItem(cacheKey(userId, space))
+    Object.keys(localStorage)
+      .filter((k) => k === cacheKey(userId) || k.startsWith(`${cacheKey(userId)}-`))
+      .forEach((k) => localStorage.removeItem(k))
   } catch {
     /* ignorovat */
   }
