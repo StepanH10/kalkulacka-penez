@@ -1,6 +1,7 @@
 import '@fontsource-variable/inter'
 import './styles/main.scss'
 import { registerSW } from 'virtual:pwa-register'
+import { inject } from '@vercel/analytics'
 import { injectSpeedInsights } from '@vercel/speed-insights'
 
 import { supabase, isConfigured } from './lib/supabase.js'
@@ -15,6 +16,7 @@ const app = document.querySelector('#app')
 
 initTheme()
 registerSW({ immediate: true })
+inject()
 injectSpeedInsights()
 
 /** Načte data a vytvoří splatné opakované transakce. */
