@@ -29,60 +29,9 @@ Mobile-first webová aplikace (PWA) pro osobní finance: zapisování výdajů, 
 - [vite-plugin-pwa](https://vite-pwa-org.netlify.app/) – manifest a service worker
 - [Vercel Speed Insights](https://vercel.com/docs/speed-insights) – měření výkonu (Core Web Vitals) na Vercelu
 
-## Zprovoznění
+## Aplikace
 
-### 1. Založení projektu v Supabase
-1. Zaregistrujte se na [supabase.com](https://supabase.com/) a vytvořte nový projekt (region např. *Central EU (Frankfurt)*).
-2. Počkejte, než se projekt připraví.
-
-### 2. Spuštění databázového schématu
-1. V Supabase otevřete **SQL Editor** → **New query**.
-2. Vložte celý obsah souboru [supabase/schema.sql](supabase/schema.sql) a klikněte na **Run**.
-3. Skript vytvoří tabulky, indexy, RLS politiky, trigger pro výchozí data nového uživatele (účet „Hotovost“ a kategorie) a funkce. Obsahuje kompletní aktuální stav databáze, je určený pro **nový projekt od nuly**.
-
-**Existující databáze s daty:** `schema.sql` znovu nespouštějte. Spusťte postupně jen nové soubory ze složky [supabase/migrations/](supabase/migrations/) podle pořadového čísla (`002_…`, `003_…`). Každá migrace jen přidává změny a data nemaže. Už spuštěnou migraci se neupravuje.
-
-### 3. Nastavení `.env`
-1. V Supabase otevřete **Project Settings → API** (nebo **Connect**).
-2. Zkopírujte `.env.example` do `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-3. Doplňte hodnoty:
-   ```
-   VITE_SUPABASE_URL=https://xxxxxxxx.supabase.co
-   VITE_SUPABASE_ANON_KEY=váš-anon-public-klíč
-   ```
-   Soubor `.env` je v `.gitignore` a do repozitáře se nenahrává. Anon klíč je veřejný; data chrání RLS politiky.
-
-### 4. URL pro přesměrování (potvrzení e-mailu a reset hesla)
-V Supabase otevřete **Authentication → URL Configuration**:
-- **Site URL**: adresa aplikace, lokálně `http://localhost:5173`, v produkci např. `https://kalkulacka-penez.netlify.app`
-- **Redirect URLs** – přidejte:
-  - `http://localhost:5173/**`
-  - `http://localhost:4173/**` (pro `npm run preview`)
-  - produkční adresu, např. `https://kalkulacka-penez.netlify.app/**`
-
-Odkaz pro obnovení hesla vede na `/reset-password`, potvrzení registrace na `/`.
-
-Volitelně v **Authentication → Providers → Email** můžete vypnout *Confirm email*. Uživatel je pak po registraci rovnou přihlášen.
-
-### 5. Spuštění aplikace
-```bash
-npm install
-npm run dev       # vývojový server na http://localhost:5173
-npm run build     # produkční build do dist/
-npm run preview   # náhled buildu na http://localhost:4173 (včetně service workeru)
-```
-
-Na telefonu ve stejné Wi-Fi spusťte `npm run dev -- --host` a otevřete adresu, kterou Vite vypíše. Instalace PWA na plochu vyžaduje HTTPS (v produkci) nebo `localhost`.
-
-### Nasazení
-Aplikace je statická (složka `dist/`). Hosting musí přesměrovat všechny cesty na `index.html` (SPA fallback):
-- **Netlify**: soubor `public/_redirects` s řádkem `/*  /index.html  200`
-- **Vercel**: `vercel.json` s `{"rewrites":[{"source":"/(.*)","destination":"/index.html"}]}`
-
-Proměnné `VITE_SUPABASE_URL` a `VITE_SUPABASE_ANON_KEY` nastavte v administraci hostingu.
+Aplikace běží na **[kalkulacka-penez.vercel.app](https://kalkulacka-penez.vercel.app/)**.
 
 ## Struktura projektu
 ```
@@ -108,6 +57,9 @@ src/
 ```
 
 ## Deník změn
+
+### 2026-11-04 – README: odkaz na aplikaci
+- Sekce „Zprovoznění“ (Supabase, `.env`, přesměrování, spuštění, nasazení) nahrazena odkazem na nasazenou aplikaci https://kalkulacka-penez.vercel.app/.
 
 ### 2026-11-03 – .gitignore
 - Do `.gitignore` přidány `.claude/` a `skills-lock.json` (lokální nastavení nástrojů, nepatří do repozitáře).
