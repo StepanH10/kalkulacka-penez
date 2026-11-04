@@ -234,6 +234,9 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- triggerová funkce: nesmí jít volat přes RPC (trigger EXECUTE nepotřebuje)
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+
 -- ---------------------------------------------------------------------
 -- Opakované transakce (osobní i skupinové): vytvoří splatné transakce až do p_today včetně.
 -- Běží s právy volajícího (RLS platí), řádky zamyká, takže dvě zařízení
@@ -813,6 +816,9 @@ create or replace trigger group_members_limits
   before insert on public.group_members
   for each row execute function public.enforce_group_limits();
 
+-- triggerová funkce: nesmí jít volat přes RPC (trigger EXECUTE nepotřebuje)
+revoke execute on function public.enforce_group_limits() from public, anon, authenticated;
+
 -- ---------------------------------------------------------------------
 -- RLS: skupiny a členové
 -- ---------------------------------------------------------------------
@@ -1015,6 +1021,9 @@ $$;
 create or replace trigger on_auth_user_deleting
   before delete on auth.users
   for each row execute function public.handle_user_deleting();
+
+-- triggerová funkce: nesmí jít volat přes RPC (trigger EXECUTE nepotřebuje)
+revoke execute on function public.handle_user_deleting() from public, anon, authenticated;
 
 -- =====================================================================
 -- Pozvánky do skupin (podle tagu a jednorázovým odkazem / QR)
@@ -1554,6 +1563,9 @@ create or replace trigger group_invites_notify
   after insert or update of status on public.group_invites
   for each row execute function public.notify_invite_events();
 
+-- triggerová funkce: nesmí jít volat přes RPC (trigger EXECUTE nepotřebuje)
+revoke execute on function public.notify_invite_events() from public, anon, authenticated;
+
 -- ---------------------------------------------------------------------
 -- Trigger: nový výdaj ve skupině → všem ostatním členům
 -- (výdaje z opakovaných plateb se neoznamují – zapisuje je ten, kdo
@@ -1601,6 +1613,9 @@ create or replace trigger transactions_notify_group_expense
   after insert on public.transactions
   for each row execute function public.notify_group_expense();
 
+-- triggerová funkce: nesmí jít volat přes RPC (trigger EXECUTE nepotřebuje)
+revoke execute on function public.notify_group_expense() from public, anon, authenticated;
+
 -- ---------------------------------------------------------------------
 -- Triggery: změna role a odebrání ze skupiny
 -- ---------------------------------------------------------------------
@@ -1645,6 +1660,9 @@ $$;
 create or replace trigger group_members_notify
   after update of role or delete on public.group_members
   for each row execute function public.notify_member_events();
+
+-- triggerová funkce: nesmí jít volat přes RPC (trigger EXECUTE nepotřebuje)
+revoke execute on function public.notify_member_events() from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------
 -- Realtime: nová upozornění chodí do aplikace hned (RLS platí i tady).

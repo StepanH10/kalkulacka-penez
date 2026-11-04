@@ -58,6 +58,11 @@ src/
 
 ## Deník změn
 
+### 2026-11-04 – Migrace 007: triggerové funkce bez práva EXECUTE
+- Na hlášení Supabase Security Advisoru nová migrace `supabase/migrations/007_revoke_trigger_functions.sql`. U triggerových funkcí `enforce_group_limits`, `handle_new_user`, `handle_user_deleting`, `notify_group_expense`, `notify_invite_events` a `notify_member_events` odebírá EXECUTE pro `public`, `anon` a `authenticated`, takže je nejde zavolat přes RPC.
+- Triggery fungují dál, protože Postgres právo na funkci kontroluje jen při vytvoření triggeru. Pomocné funkce RLS (`is_group_member`, `can_edit_group`, `is_group_owner`) ani RPC funkce aplikace se nemění.
+- Stejné `revoke` je doplněné v `schema.sql` u každého triggeru. V `CLAUDE.md` přibylo pravidlo, že každá nová triggerová funkce musí mít `revoke execute`.
+
 ### 2026-11-04 – README: odkaz na aplikaci
 - Sekce „Zprovoznění“ (Supabase, `.env`, přesměrování, spuštění, nasazení) nahrazena odkazem na nasazenou aplikaci https://kalkulacka-penez.vercel.app/.
 
