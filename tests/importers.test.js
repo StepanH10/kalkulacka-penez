@@ -519,3 +519,83 @@ test('registr: neznámé CSV → univerzální import, KB/Revolut/GPC se nepleto
     assert.equal(r.bank?.id, id, name)
   }
 })
+
+// ---------------------------------------------------------------- stejné ID v jednom souboru
+
+const { duplicateFlags } = await import('../src/importers/utils.js')
+const REPEAT_HEAD = 'Datum zauctovani;Datum provedeni;Protistrana;Nazev protiuctu;Castka;Mena;VS;Identifikace transakce;Typ transakce;Popis pro me;Zprava pro prijemce'
+const repeatFile = [
+  REPEAT_HEAD,
+  '02.10.2026;02.10.2026;;Vyrovnani;-100,50;CZK;;FTAAA1;Vyrovnávací úhrada;;',
+  '02.10.2026;02.10.2026;;Vyrovnani;-200,25;CZK;;FTAAA1;Vyrovnávací úhrada;;',
+  '03.10.2026;03.10.2026;;Lidl;-49,80;CZK;;ID-UNIQUE;Mobilní platba;;',
+  '',
+].join('\n')
+// co by po importu leželo v databázi
+const asStored = (rows, hashes) =>
+  rows.map((r, i) => ({ import_hash: hashes[i], date: r.date, amount: Math.abs(r.amount), type: r.amount < 0 ? 'expense' : 'income' }))
+
+test('stejné ID u dvou různých řádků: oba se importují, druhý import = oba duplicity', () => {
+  const rows = kb.parse(repeatFile)
+  const hashes = importHashes('kb', rows)
+  assert.equal(new Set(hashes).size, 3, 'každý řádek má vlastní otisk')
+  assert.equal(hashes[2], 'kb:ID-UNIQUE', 'ID bez opakování má dál původní tvar')
+  assert.deepEqual(duplicateFlags('kb', rows, hashes, []), [false, false, false], 'prázdný účet: žádná duplicita')
+  assert.deepEqual(importHashes('kb', kb.parse(repeatFile)), hashes, 'deterministické')
+  assert.deepEqual(duplicateFlags('kb', rows, hashes, asStored(rows, hashes)), [true, true, true], 'druhý import')
+})
+
+test('stejné ID, datum, částka i protistrana: rozliší je pořadí', () => {
+  const same = { date: '2026-10-02', amount: -5, counterparty: 'X', description: 'X', externalId: 'A' }
+  const hashes = importHashes('kb', [same, { ...same }])
+  assert.notEqual(hashes[0], hashes[1])
+  assert.match(hashes[0], /:1$/)
+  assert.match(hashes[1], /:2$/)
+  assert.deepEqual(duplicateFlags('kb', [same, same], hashes, []), [false, false])
+})
+
+test('dřívější import se starým otiskem: chybějící řádek se doplní, nic se nezdvojí', () => {
+  const rows = kb.parse(repeatFile)
+  const hashes = importHashes('kb', rows)
+  // dříve se uložil jen první řádek dvojice jako „kb:<ID>“
+  const old = [
+    { import_hash: 'kb:FTAAA1', date: '2026-10-02', amount: 100.5, type: 'expense' },
+    { import_hash: 'kb:ID-UNIQUE', date: '2026-10-03', amount: 49.8, type: 'expense' },
+  ]
+  const flags = duplicateFlags('kb', rows, hashes, old)
+  assert.deepEqual(flags, [true, false, true])
+  // po doplnění: stále všechno duplicita
+  const after = [...old, ...asStored(rows, hashes).filter((_, i) => !flags[i])]
+  assert.deepEqual(duplicateFlags('kb', rows, hashes, after), [true, true, true])
+})
+
+test('kratší výpis se stejným řádkem jako dřívější soubor s opakovaným ID = duplicita', () => {
+  const rows = kb.parse(repeatFile)
+  const stored = asStored(rows, importHashes('kb', rows))
+  const short = kb.parse([REPEAT_HEAD, '02.10.2026;02.10.2026;;Vyrovnani;-100,50;CZK;;FTAAA1;Vyrovnávací úhrada;;', ''].join('\n'))
+  const shortHashes = importHashes('kb', short)
+  assert.equal(shortHashes[0], 'kb:FTAAA1')
+  assert.deepEqual(duplicateFlags('kb', short, shortHashes, stored), [true])
+  const other = kb.parse([REPEAT_HEAD, '02.10.2026;02.10.2026;;Vyrovnani;-999,00;CZK;;FTAAA1;Vyrovnávací úhrada;;', ''].join('\n'))
+  assert.deepEqual(duplicateFlags('kb', other, importHashes('kb', other), stored), [false], 'jiná částka není duplicita')
+})
+
+test('opakované ID platí i pro ABO, univerzální import a Revolut', async () => {
+  const row = (id, amount) => ({ date: '2026-10-02', amount, counterparty: 'X', description: 'X', externalId: id })
+  for (const bank of ['gpc', 'csv', 'revolut']) {
+    const rows = [row('A', -1), row('A', -2)]
+    const hashes = importHashes(bank, rows)
+    assert.equal(new Set(hashes).size, 2, bank)
+    assert.deepEqual(duplicateFlags(bank, rows, hashes, []), [false, false], bank)
+    assert.deepEqual(duplicateFlags(bank, rows, hashes, asStored(rows, hashes)), [true, true], bank)
+  }
+  const { default: universal, analyze } = await import('../src/importers/universal.js')
+  const csv = 'Datum;Částka;Popis;ID\n01.10.2026;-10;A;X1\n01.10.2026;-20;A;X1\n'
+  const rows = universal.parse(csv, { config: analyze(csv).config })
+  assert.equal(new Set(importHashes('csv', rows)).size, 2)
+})
+
+test('otisk se vejde do limitu databáze (200 znaků) i s dlouhým ID', () => {
+  const long = { date: '2026-10-02', amount: -1234567.89, counterparty: 'X', description: 'X', externalId: 'I'.repeat(300) }
+  for (const h of importHashes('kb', [long, { ...long }])) assert.ok(h.length <= 200, String(h.length))
+})

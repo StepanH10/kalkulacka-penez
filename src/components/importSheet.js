@@ -10,7 +10,7 @@ import { createRow, updateRow, importTransactions } from '../services/api.js'
 import { findTemplate, saveTemplate } from '../services/importTemplates.js'
 import { ACCEPT, BANKS, UNIVERSAL_ID, bankById, readStatement, parseStatement, statementText, balanceCheck } from '../importers/index.js'
 import { analyze, FIELDS, mappingError } from '../importers/universal.js'
-import { importHashes } from '../importers/utils.js'
+import { importHashes, duplicateFlags } from '../importers/utils.js'
 import { rowType, suggestCategory, sameRule, ruleTextFor } from '../importers/categorize.js'
 import { openingOffer, projectBalance } from '../importers/openingBalance.js'
 import { esc, setLoading } from '../utils/dom.js'
@@ -69,18 +69,17 @@ function categoryOptions(type, selected) {
 /** Řádky výpisu → položky náhledu se stavem, otiskem a navrženou kategorií. */
 function buildItems(bank, parsed, accountId) {
   const { transactions, rules, categories } = getState()
-  const existing = new Set(transactions.filter((t) => t.account_id === accountId && t.import_hash).map((t) => t.import_hash))
   const hashes = importHashes(bank.id, parsed)
-  const inFile = new Set()
+  // duplicita = jen shoda s transakcí, která už v účtu je
+  const duplicates = duplicateFlags(bank.id, parsed, hashes, transactions.filter((t) => t.account_id === accountId && t.import_hash))
   return parsed.map((row, i) => {
     const hash = hashes[i]
     const type = rowType(row)
     let status = 'new'
     if (row.error) status = 'error'
-    else if (existing.has(hash) || inFile.has(hash)) status = 'dup'
+    else if (duplicates[i]) status = 'dup'
     else if (row.warning) status = 'warn'
     else if (row.currency !== 'CZK') status = 'fx'
-    inFile.add(hash)
     return {
       row,
       hash,

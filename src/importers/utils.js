@@ -215,19 +215,69 @@ export function hashString(str) {
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, '0')
 }
 
+const cents = (amount) => Math.round(Number(amount) * 100)
+
+/** Otisk rozlišující řádky se stejným ID: ID + datum + částka + protistrana (bez pořadí). */
+const repeatStem = (bankId, r) =>
+  `${`${bankId}:${r.externalId}`.slice(0, 150)}:${r.date}:${cents(r.amount)}:${hashString(normalizeText(r.counterparty))}`
+
 /**
- * Otisky řádků pro kontrolu duplicit: „<banka>:<externalId>“, bez něj
- * „<banka>:h:<hash data, částky, protistrany a popisu>:<pořadí>“.
- * Pořadí rozliší dvě stejné platby téhož dne (dvě kávy) – ve výpisu
- * za překrývající se období vyjdou stejně, takže se nezdvojí.
+ * Otisky řádků pro kontrolu duplicit. Každý řádek souboru má vlastní a opakovaný
+ * import stejného souboru dá stejné otisky.
+ * - ID je v souboru jednou: „<banka>:<externalId>“
+ * - ID se v souboru opakuje (KB ho sdílí např. u vyrovnávacích úhrad):
+ *   „<banka>:<externalId>:<datum>:<haléře>:<hash protistrany>:<pořadí stejné kombinace>“
+ * - bez ID: „<banka>:h:<hash data, částky, protistrany a popisu>:<pořadí>“
+ * Pořadí rozliší i dvě stejné platby téhož dne (dvě kávy).
  */
 export function importHashes(bankId, rows) {
+  const idCount = new Map()
+  for (const r of rows) if (r.externalId) idCount.set(r.externalId, (idCount.get(r.externalId) ?? 0) + 1)
   const seen = new Map()
+  const nth = (key) => {
+    const n = (seen.get(key) ?? 0) + 1
+    seen.set(key, n)
+    return n
+  }
   return rows.map((r) => {
-    if (r.externalId) return `${bankId}:${r.externalId}`.slice(0, 200)
+    if (r.externalId) {
+      if (idCount.get(r.externalId) === 1) return `${bankId}:${r.externalId}`.slice(0, 200)
+      const stem = repeatStem(bankId, r)
+      return `${stem}:${nth(stem)}`
+    }
     const base = hashString([r.date, r.amount, normalizeText(r.counterparty), normalizeText(r.description)].join('|'))
-    const n = (seen.get(base) ?? 0) + 1
-    seen.set(base, n)
-    return `${bankId}:h:${base}:${n}`
+    return `${bankId}:h:${base}:${nth(base)}`
+  })
+}
+
+/**
+ * Které řádky už jsou v účtu: duplicita je jen shoda s transakcí v databázi, nikdy
+ * shoda uvnitř souboru. existing = transakce účtu s import_hash.
+ * Tvar otisku závisí na tom, jestli se ID v daném souboru opakuje, proto se porovnává i křížem:
+ * - řádek s opakovaným ID × starý otisk „<banka>:<ID>“ se stejným datem a částkou
+ *   (import z doby, kdy se druhý řádek dvojice zahodil), každý starý otisk jen jednou
+ * - řádek s ID bez opakování × otisk s rozlišením stejného řádku (výpis za kratší období)
+ */
+export function duplicateFlags(bankId, rows, hashes, existing) {
+  const exact = new Set()
+  const stems = new Set()
+  const plain = new Map()
+  for (const t of existing) {
+    exact.add(t.import_hash)
+    stems.add(t.import_hash.replace(/:\d+$/, ''))
+    const list = plain.get(t.import_hash) ?? []
+    list.push(`${t.date}:${(t.type === 'income' ? 1 : -1) * cents(t.amount)}`)
+    plain.set(t.import_hash, list)
+  }
+  return rows.map((r, i) => {
+    if (exact.has(hashes[i])) return true
+    if (!r.externalId) return false
+    const base = `${bankId}:${r.externalId}`.slice(0, 200)
+    if (hashes[i] === base) return stems.has(repeatStem(bankId, r))
+    const old = plain.get(base)
+    const at = old ? old.indexOf(`${r.date}:${cents(r.amount)}`) : -1
+    if (at < 0) return false
+    old.splice(at, 1)
+    return true
   })
 }

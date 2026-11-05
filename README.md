@@ -106,6 +106,11 @@ Limity (5 MB, 2000 řádků), dekódování, duplicity, náhled i pravidla kateg
 
 ## Deník změn
 
+### 2026-11-05 – Oprava: stejné ID transakce v jednom výpisu není duplicita
+- KB používá stejnou „Identifikaci transakce“ pro různé platby (v ověřeném výpisu dvojice „Vyrovnávací úhrada“ se stejným datem a protistranou, ale jinou částkou). Druhý řádek dvojice se hlásil jako duplicita a nesedl zůstatek.
+- Když se ID v souboru opakuje, otisk obsahuje navíc datum, částku, protistranu a pořadí stejné kombinace. Je deterministický a platí pro všechny importy (`importHashes` je společný).
+- Duplicita je nově jen shoda s transakcí, která už je v účtu (`duplicateFlags`). Poznají se i dříve importované řádky se starým otiskem `kb:<ID>`, takže opakovaný import nic nezdvojí a doplní jen chybějící řádky.
+
 ### 2026-11-05 – Počáteční zůstatek účtu: výpočet, import, nastavení
 - Zůstatek účtu = počáteční zůstatek + transakce a převody s datem od `opening_balance_date`. Účet bez počátečního zůstatku se počítá ze všech pohybů jako dřív. Statistiky příjmů a výdajů se nemění.
 - Import (KB i ABO): náhled nabízí „Nastavit počáteční zůstatek podle výpisu“, když ho účet nemá, a „Přepsat…“, když je výpis starší než současné datum. Datum je starší z začátku výpisu a nejstaršího pohybu ve výpisu. Nabídka ukazuje výsledný zůstatek účtu, konečný zůstatek z výpisu a případný rozdíl a přepočítává se podle zaškrtnutých řádků. U už naimportovaného výpisu jde nastavit jen zůstatek.
