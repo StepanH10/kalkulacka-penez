@@ -58,6 +58,12 @@ src/
 
 ## Deník změn
 
+### 2026-11-05 – Migrace 008: import z CSV (databáze)
+- Nová migrace `supabase/migrations/008_csv_import.sql`, stejná úprava je v `schema.sql`.
+- `transactions.import_hash` je otisk importovaného řádku výpisu. Unikátní `(account_id, import_hash)` brání tomu, aby se stejná transakce dostala do stejného účtu dvakrát. Ručně zadané transakce mají `import_hash` null a omezení se jich netýká.
+- Nová tabulka `import_rules` (text → kategorie) je osobní nebo skupinová stejně jako ostatní data. Rozsah hlídají stávající triggery `set_row_scope`/`keep_row_scope`. Osobní pravidla vidí jen vlastník, skupinová čtou všichni členové a měnit je smí vlastník a editoři. Smazáním kategorie se smažou i její pravidla.
+- `notify_group_expense`: importované výdaje ve skupině neposílají upozornění po jednom.
+
 ### 2026-11-04 – Migrace 007: triggerové funkce bez práva EXECUTE
 - Na hlášení Supabase Security Advisoru nová migrace `supabase/migrations/007_revoke_trigger_functions.sql`. U triggerových funkcí `enforce_group_limits`, `handle_new_user`, `handle_user_deleting`, `notify_group_expense`, `notify_invite_events` a `notify_member_events` odebírá EXECUTE pro `public`, `anon` a `authenticated`, takže je nejde zavolat přes RPC.
 - Triggery fungují dál, protože Postgres právo na funkci kontroluje jen při vytvoření triggeru. Pomocné funkce RLS (`is_group_member`, `can_edit_group`, `is_group_owner`) ani RPC funkce aplikace se nemění.

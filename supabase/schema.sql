@@ -1584,7 +1584,8 @@ declare
   v_author text;
   m record;
 begin
-  if new.group_id is null or new.type <> 'expense' or new.recurring_id is not null then
+  if new.group_id is null or new.type <> 'expense' or new.recurring_id is not null
+     or new.import_hash is not null then
     return null;
   end if;
   select name into v_group from public.groups where id = new.group_id;
@@ -1680,3 +1681,81 @@ begin
   end if;
 end
 $$;
+
+-- =====================================================================
+-- Import transakcí z CSV výpisu banky
+-- (importované výdaje ve skupině neoznamuje notify_group_expense po jednom)
+-- =====================================================================
+
+-- ---------------------------------------------------------------------
+-- Otisk importované transakce + ochrana proti duplicitám
+-- ---------------------------------------------------------------------
+
+alter table public.transactions add column if not exists import_hash text;
+select pg_temp.ensure_constraint('transactions', 'transactions_import_hash_check',
+  'check (import_hash is null or char_length(import_hash) between 1 and 200)');
+
+-- Unikátní (account_id, import_hash). Ručně zadané transakce mají import_hash
+-- null a null se v unikátním omezení nikdy neshoduje, takže se omezení týká
+-- jen importovaných řádků (stejně jako částečný index „where import_hash is
+-- not null“). Úplné omezení místo částečného indexu proto, že na něj jde
+-- cílit „on conflict (account_id, import_hash) do nothing“ z klienta
+-- (upsert s ignoreDuplicates). Částečný index by konflikt bez podmínky
+-- where neodvodil.
+select pg_temp.ensure_constraint('transactions', 'transactions_account_import_hash_key',
+  'unique (account_id, import_hash)');
+
+-- ---------------------------------------------------------------------
+-- Pravidla importu: text v popisu / protistraně → kategorie
+-- ---------------------------------------------------------------------
+
+create table if not exists public.import_rules (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid default auth.uid() references auth.users (id) on delete cascade,
+  group_id uuid references public.groups (id) on delete cascade,
+  -- porovnává se bez ohledu na velikost písmen a diakritiku (normalizuje klient)
+  match_text text not null check (char_length(trim(match_text)) between 2 and 60),
+  category_id uuid not null,
+  created_at timestamptz not null default now(),
+  constraint import_rules_scope_check check ((user_id is null) <> (group_id is null)),
+  -- kategorie ze stejného prostoru; smazání kategorie smaže i její pravidla
+  constraint import_rules_category_user_fkey
+    foreign key (category_id, user_id) references public.categories (id, user_id) on delete cascade,
+  constraint import_rules_category_group_fkey
+    foreign key (category_id, group_id) references public.categories (id, group_id) on delete cascade
+);
+
+create index if not exists import_rules_user_id_idx on public.import_rules (user_id) where user_id is not null;
+create index if not exists import_rules_group_id_idx on public.import_rules (group_id) where group_id is not null;
+create index if not exists import_rules_category_id_idx on public.import_rules (category_id);
+
+-- Rozsah řádku hlídají stávající (security invoker) triggerové funkce
+-- set_row_scope / keep_row_scope – žádná nová triggerová funkce nevzniká
+create or replace trigger import_rules_set_scope
+  before insert on public.import_rules
+  for each row execute function public.set_row_scope('-');
+create or replace trigger import_rules_keep_scope
+  before update on public.import_rules
+  for each row execute function public.keep_row_scope('-');
+
+-- RLS: osobní pravidla jen vlastník; skupinová čte člen, mění a maže owner/editor
+alter table public.import_rules enable row level security;
+
+select pg_temp.ensure_policy('import_rules', 'import_rules_select_own', 'select',
+  'user_id = (select auth.uid())', null);
+select pg_temp.ensure_policy('import_rules', 'import_rules_insert_own', 'insert',
+  null, 'user_id = (select auth.uid())');
+select pg_temp.ensure_policy('import_rules', 'import_rules_update_own', 'update',
+  'user_id = (select auth.uid())', 'user_id = (select auth.uid())');
+select pg_temp.ensure_policy('import_rules', 'import_rules_delete_own', 'delete',
+  'user_id = (select auth.uid())', null);
+
+select pg_temp.ensure_policy('import_rules', 'import_rules_group_select', 'select',
+  'group_id is not null and public.is_group_member(group_id)', null);
+select pg_temp.ensure_policy('import_rules', 'import_rules_group_insert', 'insert',
+  null, 'group_id is not null and public.can_edit_group(group_id)');
+select pg_temp.ensure_policy('import_rules', 'import_rules_group_update', 'update',
+  'group_id is not null and public.can_edit_group(group_id)',
+  'group_id is not null and public.can_edit_group(group_id)');
+select pg_temp.ensure_policy('import_rules', 'import_rules_group_delete', 'delete',
+  'group_id is not null and public.can_edit_group(group_id)', null);
