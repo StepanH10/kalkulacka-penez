@@ -33,12 +33,21 @@ export default {
     return t.startsWith('KB+, vypis v csv. formatu') || t.split(/\r?\n/).some((line) => line.startsWith(HEADER_START))
   },
 
-  /** Období výpisu z metadat („Vypis od“ / „Vypis do“). Číslo účtu, IBAN ani název se nečtou. */
+  /** Období a zůstatky z metadat. Číslo účtu, IBAN ani název se nečtou. */
   meta(text) {
     const rows = parseCSV(text, ';')
     const end = findHeader(rows)
     const value = (key) => rows.slice(0, end < 0 ? rows.length : end).find((r) => r[0] === key)?.[1] ?? ''
-    return { from: parseCzechDate(value('Vypis od')), to: parseCzechDate(value('Vypis do')) }
+    const balance = (key) => {
+      const n = parseCzechNumber(value(key))
+      return Number.isNaN(n) ? null : n
+    }
+    return {
+      from: parseCzechDate(value('Vypis od')),
+      to: parseCzechDate(value('Vypis do')),
+      opening: balance('Pocatecni zustatek'),
+      closing: balance('Konecny zustatek'),
+    }
   },
 
   parse(text) {

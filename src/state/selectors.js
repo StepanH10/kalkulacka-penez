@@ -17,18 +17,34 @@ export function categoriesByType(type, state = getState()) {
     .sort((a, b) => a.created_at?.localeCompare(b.created_at ?? '') || a.name.localeCompare(b.name, 'cs'))
 }
 
-/** Zůstatky všech účtů: Map(accountId → číslo). */
+/**
+ * Zůstatky všech účtů: Map(accountId → číslo).
+ * Zůstatek = počáteční zůstatek + transakce a převody s datem od opening_balance_date.
+ * Účet bez počátečního zůstatku se počítá ze všech pohybů.
+ */
 export function accountBalances(state = getState()) {
-  const balances = new Map(state.accounts.map((a) => [a.id, 0]))
-  for (const t of state.transactions) {
-    if (!balances.has(t.account_id)) continue
-    balances.set(t.account_id, balances.get(t.account_id) + (t.type === 'income' ? num(t.amount) : -num(t.amount)))
+  const balances = new Map(state.accounts.map((a) => [a.id, num(a.opening_balance)]))
+  const since = new Map(state.accounts.map((a) => [a.id, a.opening_balance_date ?? '']))
+  const add = (id, date, amount) => {
+    if (balances.has(id) && date >= since.get(id)) balances.set(id, balances.get(id) + amount)
   }
+  for (const t of state.transactions) add(t.account_id, t.date, t.type === 'income' ? num(t.amount) : -num(t.amount))
   for (const t of state.transfers) {
-    if (balances.has(t.from_account_id)) balances.set(t.from_account_id, balances.get(t.from_account_id) - num(t.amount))
-    if (balances.has(t.to_account_id)) balances.set(t.to_account_id, balances.get(t.to_account_id) + num(t.amount))
+    add(t.from_account_id, t.date, -num(t.amount))
+    add(t.to_account_id, t.date, num(t.amount))
   }
+  for (const [id, value] of balances) balances.set(id, Math.round(value * 100) / 100)
   return balances
+}
+
+/** Počet pohybů účtu starších než datum (při tomto počátečním zůstatku se nepočítají). */
+export function movementsBefore(accountId, date, state = getState()) {
+  if (!date) return 0
+  const older = (t) => t.date < date
+  return (
+    state.transactions.filter((t) => t.account_id === accountId && older(t)).length +
+    state.transfers.filter((t) => (t.from_account_id === accountId || t.to_account_id === accountId) && older(t)).length
+  )
 }
 
 export function totalBalance(state = getState()) {
@@ -79,7 +95,7 @@ export function goalSaved(goalId, state = getState()) {
   return state.entries.filter((e) => e.goal_id === goalId).reduce((s, e) => s + num(e.amount), 0)
 }
 
-const byNewest = (a, b) => b.date.localeCompare(a.date) || (b.created_at ?? '').localeCompare(a.created_at ?? '')
+export const byNewest = (a, b) => b.date.localeCompare(a.date) || (b.created_at ?? '').localeCompare(a.created_at ?? '')
 
 /** Transakce a převody v jednom seznamu, od nejnovějších. */
 export function feedItems({ from = '', to = '9999-12-31', limit = Infinity } = {}, state = getState()) {

@@ -2,6 +2,8 @@ import { getState, subscribe } from '../state/store.js'
 import { accountBalances, totalBalance, transactionsInRange, totals, budgetStatus, feedItems } from '../state/selectors.js'
 import { renderFeed, bindFeed } from '../components/feed.js'
 import { renderInviteBanner, bindInviteBanner } from '../components/inviteBanner.js'
+import { renderInsightsCard, bindInsightsCard } from '../components/insightsCard.js'
+import { buildInsights } from '../utils/insights.js'
 import { esc } from '../utils/dom.js'
 import { icon } from '../utils/icons.js'
 import { formatMoney, formatPercent } from '../utils/format.js'
@@ -23,6 +25,8 @@ function budgetAlerts(state) {
 }
 
 export default function overviewView(el) {
+  let monthInsights = { enoughHistory: true, insights: [] }
+
   const draw = () => {
     const state = getState()
     const { from, to } = monthRange(0)
@@ -30,6 +34,7 @@ export default function overviewView(el) {
     const balances = accountBalances(state)
     const name = state.profile?.username ?? ''
     const alerts = budgetAlerts(state)
+    monthInsights = buildInsights({ transactions: state.transactions, categories: state.categories, group: Boolean(state.space) })
 
     el.innerHTML = `
       <header class="page-header">
@@ -75,6 +80,8 @@ export default function overviewView(el) {
 
       ${alerts ? `<section class="section stack">${alerts}</section>` : ''}
 
+      ${renderInsightsCard(monthInsights)}
+
       <section class="section">
         <div class="section__head">
           <h2>Poslední transakce</h2>
@@ -88,9 +95,11 @@ export default function overviewView(el) {
   const unsub = subscribe(draw)
   const unbind = bindFeed(el)
   const unbindInvites = bindInviteBanner(el)
+  const unbindInsights = bindInsightsCard(el, () => monthInsights.insights)
   return () => {
     unsub()
     unbind()
     unbindInvites()
+    unbindInsights()
   }
 }

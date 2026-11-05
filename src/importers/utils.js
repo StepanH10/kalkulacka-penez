@@ -19,6 +19,7 @@ const hasNonAscii = (bytes) => bytes.some((b) => b > 0x7f)
  * sekvence prakticky nevyskytují. BOM se odstraní.
  */
 export function decodeBytes(buffer, encoding = 'utf-8') {
+  if (encoding === 'auto') return decodeUnknown(buffer)
   const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer)
   let text
   if (encoding.toLowerCase() !== 'utf-8' && hasNonAscii(bytes)) {
@@ -104,6 +105,90 @@ export function parseCzechDate(input) {
   const date = new Date(y, mo - 1, d)
   if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null
   return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+}
+
+/**
+ * Číslo v libovolném běžném zápisu: „-1 234,50“, „1.234,50“, „1,234.50“,
+ * „1234.5“, „123,45-“ (mínus na konci), „(12,50)“, „−5“, s měnou na konci.
+ * decimal: ',' | '.' | 'auto' (podle posledního oddělovače). Vrací Number, nebo NaN.
+ */
+export function parseNumber(input, decimal = 'auto') {
+  let s = String(input ?? '')
+    .replace(/[\s\u00A0\u202F']/g, '')
+    .replace(/(kč|kc|[a-z]{3})$/i, '')
+  if (!s) return NaN
+  let negative = false
+  if (/^\(.*\)$/.test(s)) {
+    negative = true
+    s = s.slice(1, -1)
+  }
+  if (/[-−]$/.test(s)) {
+    negative = true
+    s = s.slice(0, -1)
+  }
+  if (/^[-−]/.test(s)) {
+    negative = !negative
+    s = s.slice(1)
+  } else if (s.startsWith('+')) s = s.slice(1)
+  let dec = decimal
+  if (dec === 'auto') {
+    const lastComma = s.lastIndexOf(',')
+    const lastDot = s.lastIndexOf('.')
+    dec = lastComma > lastDot ? ',' : lastDot > lastComma ? '.' : ','
+  }
+  const thousands = dec === ',' ? '.' : ','
+  // oddělovač tisíců jen ve skupinách po třech číslicích
+  const [whole, ...rest] = s.split(dec)
+  if (rest.length > 1) return NaN
+  if (whole.includes(thousands) && !new RegExp(`^\\d{1,3}(\\${thousands}\\d{3})+$`).test(whole)) return NaN
+  const normalized = whole.split(thousands).join('') + (rest.length ? `.${rest[0]}` : '')
+  if (!/^\d+(\.\d+)?$/.test(normalized)) return NaN
+  const n = Number(normalized)
+  return negative ? -n : n
+}
+
+/** Desetinný oddělovač sloupce podle hodnot (většina vyhrává; výchozí čárka). */
+export function detectDecimal(values) {
+  let comma = 0
+  let dot = 0
+  for (const v of values) {
+    const s = String(v ?? '').replace(/[\s\u00A0\u202F]/g, '').replace(/[-−]$/, '')
+    if (/,\d{1,2}$/.test(s) || /\.\d{3},\d+$/.test(s)) comma++
+    else if (/\.\d{1,2}$/.test(s) || /,\d{3}\.\d+$/.test(s)) dot++
+  }
+  return dot > comma ? '.' : ','
+}
+
+const DATE_RE = {
+  dmy: /^(\d{1,2})[./]\s*(\d{1,2})[./]\s*(\d{4})(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?$/,
+  ymd: /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T]\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/,
+}
+
+/**
+ * Datum v zápisu D.M.YYYY / DD.MM.YYYY (i s lomítky a časem) nebo YYYY-MM-DD
+ * (i s časem) → „YYYY-MM-DD“. format: 'dmy' | 'ymd' | 'auto'. Neplatné → null.
+ */
+export function parseDate(input, format = 'auto') {
+  const s = String(input ?? '').trim()
+  for (const f of format === 'auto' ? ['dmy', 'ymd'] : [format]) {
+    const m = DATE_RE[f]?.exec(s)
+    if (!m) continue
+    const [y, mo, d] = f === 'ymd' ? [m[1], m[2], m[3]].map(Number) : [m[3], m[2], m[1]].map(Number)
+    const date = new Date(y, mo - 1, d)
+    if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null
+    return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  }
+  return null
+}
+
+/** Formát data sloupce: 'dmy' | 'ymd', nebo null, když hodnoty nejsou data. */
+export function detectDateFormat(values) {
+  const filled = values.map((v) => String(v ?? '').trim()).filter(Boolean)
+  if (!filled.length) return null
+  for (const f of ['dmy', 'ymd']) {
+    if (filled.every((v) => parseDate(v, f))) return f
+  }
+  return null
 }
 
 /** Text pro porovnání: malá písmena, bez diakritiky, jedna mezera. */

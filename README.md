@@ -6,7 +6,8 @@ Mobile-first webová aplikace (PWA) pro osobní finance: zapisování výdajů, 
 - Registrace, přihlášení, zapomenuté heslo, změna hesla, smazání účtu včetně dat
 - Přezdívky s náhodným čtyřmístným číslem (tag `jana#0482`) – zobrazují se místo e-mailu, změna max. 1× za 30 dní
 - Rychlé přidání transakce tlačítkem **+** (výdaj / příjem / převod mezi účty)
-- Přehled: celkový zůstatek, příjmy a výdaje za měsíc, poslední transakce podle dnů
+- Přehled: celkový zůstatek, příjmy a výdaje za měsíc, poslední transakce podle dnů, karta „Tento měsíc“ s postřehy (férové srovnání s minulým měsícem, největší změna kategorie, největší výdaj, míra úspor)
+- Vyhledávání a filtry transakcí (období, typ, kategorie, účet, částka, původ, autor ve skupině) se souhrnem výsledků
 - Úprava a mazání transakcí, na mobilu swipe doleva = smazat (s „Zpět“)
 - Kategorie s barvou a emoji – vlastní kategorii jde založit přímo při zadávání transakce (tlačítko „+ Vlastní“), správa v Nastavení s přesunem transakcí při mazání
 - Více účtů a převody
@@ -18,7 +19,7 @@ Mobile-first webová aplikace (PWA) pro osobní finance: zapisování výdajů, 
 - Měsíční rozpočty s upozorněním při 80 % a 100 %
 - Opakované transakce (týdně / měsíčně), automaticky zapsané při otevření aplikace
 - Export a import zálohy (JSON), export transakcí do CSV
-- Import transakcí z CSV výpisu banky (zatím Komerční banka): náhled, kontrola duplicit, automatické kategorie podle pravidel. Soubor se zpracuje jen v prohlížeči
+- Import transakcí z výpisu banky (KB, formát ABO/GPC, Revolut a jakékoli CSV s vlastním mapováním sloupců): náhled, kontrola duplicit a zůstatků, automatické kategorie podle pravidel. Soubor se zpracuje jen v prohlížeči
 - Světlý a tmavý režim (podle systému nebo ručně)
 
 ## Technologie
@@ -59,8 +60,21 @@ src/
 tests/                     unit testy (npm test), fixtures/ s anonymizovanými výpisy
 ```
 
+## Podporované banky a formáty
+| Banka | Formát | Jak v importu | Ověřeno na skutečném výpisu |
+|---|---|---|---|
+| Komerční banka | CSV (KB+) | rozpozná se sám | ano |
+| Česká spořitelna | ABO/GPC (dialekt ČS) | ABO / GPC, dialekt se rozpozná z obsahu nebo přepne ručně | ne |
+| ČSOB | ABO/GPC (s kódem měny) | ABO / GPC | ne |
+| Fio banka | ABO/GPC (s kódem měny) | ABO / GPC | ne |
+| KB, Raiffeisenbank, Moneta, Air Bank a další | ABO/GPC (standard) | ABO / GPC | ne |
+| Revolut, osobní účet | CSV, anglický i český export | rozpozná se sám | ne |
+| Ostatní banky, Revolut Business | libovolné CSV | Jiná banka (vlastní mapování) se šablonou | ne |
+
+Formát ABO/GPC je podle veřejné specifikace, ale na skutečném výpisu z banky zatím nebyl vyzkoušený. Totéž platí pro stavy a český export Revolutu.
+
 ## Jak přidat další banku
-Import výpisů je v [src/importers/](src/importers/). Každá banka je jeden soubor se stejným rozhraním a soubor nikam neodchází, vše běží v prohlížeči.
+Import výpisů je v [src/importers/](src/importers/). Každá banka je jeden soubor se stejným rozhraním a soubor nikam neodchází, vše běží v prohlížeči. Banku bez vlastního parseru jde importovat i bez programování přes „Jiná banka (vlastní mapování)“.
 
 1. Vytvořte `src/importers/<banka>.js` podle vzoru [kb.js](src/importers/kb.js):
    ```js
@@ -72,21 +86,73 @@ Import výpisů je v [src/importers/](src/importers/). Každá banka je jeden so
      encoding: 'utf-8',         // kódování CSV z banky (TextDecoder)
      detect(text) { … },        // true, když text vypadá jako výpis této banky
      parse(text) { … },         // pole { date, amount, currency, description, counterparty, variableSymbol, externalId }
-     meta(text) { … },          // volitelné: { from, to } – období výpisu do náhledu
+     meta(text) { … },          // volitelné: { from, to, opening, closing } – období a zůstatky do náhledu
+     extensions: ['.csv'],      // volitelné: koncovky souboru navíc
+     variants: [{ id, label }], // volitelné: varianty formátu, předané do parse(text, { variant, bytes })
+     detectVariant(text, { bytes }) { … }, // volitelné: variantu rozpozná z obsahu
    }
    ```
    - `date` je `YYYY-MM-DD` (`parseCzechDate`). `amount` je číslo, záporné pro výdaj a kladné pro příjem (`parseCzechNumber`). `currency` je kód měny.
    - `description` se ukládá jako poznámka transakce (max. 200 znaků). `externalId` je jedinečné ID transakce z banky a slouží ke kontrole duplicit. Když ho banka nemá, nechte ho prázdné a otisk se spočítá z data, částky, protistrany a popisu.
    - Sloupce hledejte podle názvu v hlavičce, ne podle pořadí. Prázdné řádky přeskočte (`isBlankRow`).
    - Řádek, který nejde přečíst, vraťte s `error: 'Neplatné datum …'`. V náhledu se ukáže jako „přeskočí se“.
+   - Řádek, který se má ukázat, ale nemá být předem zaškrtnutý (např. nezaúčtovaná platba), vraťte s `warning: '…'`.
    - Chybějící hlavičku nebo jiný nečitelný formát hlaste přes `throw importError('…česky…')`.
    - Čísla karet, čísla účtů ani IBAN nevracejte.
-2. Přidejte banku do pole `BANKS` v [src/importers/index.js](src/importers/index.js).
+2. Přidejte banku do pole `BANKS` v [src/importers/index.js](src/importers/index.js) před univerzální import.
 3. Uložte anonymizovanou ukázku výpisu do `tests/fixtures/<banka>-sample.csv` ve stejném kódování, jaké používá banka. Do `tests/importers.test.js` přidejte testy `detect`, `parse` a toho, že se citlivé údaje nikam nedostanou. Spusťte `npm test`.
 
 Limity (5 MB, 2000 řádků), dekódování, duplicity, náhled i pravidla kategorií jsou společné, nová banka je nepotřebuje řešit.
 
 ## Deník změn
+
+### 2026-11-05 – Počáteční zůstatek účtu: výpočet, import, nastavení
+- Zůstatek účtu = počáteční zůstatek + transakce a převody s datem od `opening_balance_date`. Účet bez počátečního zůstatku se počítá ze všech pohybů jako dřív. Statistiky příjmů a výdajů se nemění.
+- Import (KB i ABO): náhled nabízí „Nastavit počáteční zůstatek podle výpisu“, když ho účet nemá, a „Přepsat…“, když je výpis starší než současné datum. Datum je starší z začátku výpisu a nejstaršího pohybu ve výpisu. Nabídka ukazuje výsledný zůstatek účtu, konečný zůstatek z výpisu a případný rozdíl a přepočítává se podle zaškrtnutých řádků. U už naimportovaného výpisu jde nastavit jen zůstatek.
+- Nastavení → Účty: počáteční zůstatek a datum jdou upravit ručně, smazáním obou polí se zruší. Ve skupině je smí měnit owner a editor.
+- Oprava: dlouhý text v seznamech (`.list`) už neroztáhne řádek přes okraj a neořízne částku vpravo.
+- Testy: `tests/openingBalance.test.js`.
+
+### 2026-11-05 – Migrace 010: předplatná (databáze, zatím nespuštěná)
+- Nová migrace `supabase/migrations/010_subscriptions.sql`, stejná úprava je v `schema.sql`. Tabulka `subscriptions` je osobní nebo skupinová jako ostatní data. `status = 'ignored'` znamená zamítnutý návrh detektoru.
+- `match_text` je unikátní v rámci prostoru a databáze odmítne nenormalizovaný text. Po smazání kategorie předplatné zůstane bez ní.
+- Rozsah řádku hlídají stávající `set_row_scope` / `keep_row_scope`, žádná nová triggerová funkce nevzniká. RLS: osobní jen vlastník, skupinová čte člen, mění a maže owner/editor.
+- Klient tabulku zatím nečte (není v `TABLES`), aplikace tedy funguje i před spuštěním migrace. Detektor a tracker jsou další fáze.
+- Ověřeno v PGlite: `schema.sql` od nuly, migrace nad databází bez tabulky, opakované spuštění, stejná struktura po obou cestách a kontroly oprávnění a omezení (vlastník, pozorovatel, nečlen).
+
+### 2026-11-05 – Měsíční postřehy na Přehledu
+- Karta „Tento měsíc“ ukáže nejvýše 4 postřehy seřazené podle důležitosti. Výpočty jsou jen na klientu v `src/utils/insights.js` a fungují v osobním i skupinovém prostoru.
+- Výdaje se srovnávají férově: stejné dny minulého měsíce (1.–5. listopadu vs 1.–5. října). Kratší minulý měsíc se ořízne na poslední den.
+- Kategorie s největší změnou se ukáže jen při změně alespoň o 15 % a zároveň o 200 Kč. Bez výdajů v minulém období se neukáže, protože procento není definované.
+- Dál největší výdaj měsíce a míra úspor (jen když jsou v měsíci příjmy; při záporné bilanci jiný text). Výpočet blížící se platby předplatného je připravený a napojí se s trackerem.
+- Klik na postřeh otevře Transakce s odpovídajícím filtrem. U největšího výdaje filtr míří přesně na danou transakci (den, částka).
+- Dost historie = nejstarší transakce není novější než 1. den minulého měsíce. Jinak karta napíše, že na srovnání je málo dat, a ukáže jen postřehy z aktuálního měsíce.
+
+### 2026-11-05 – Vyhledávání a filtry transakcí
+- Na obrazovce Transakce je vyhledávání (debounce 250 ms, bez ohledu na velikost písmen a diakritiku, více slov v libovolném pořadí) a tlačítko „Filtry“ s bottom sheetem. Aktivní filtry jsou odstranitelné chipy se „Zrušit vše“, nad výsledky je souhrn počtu a součtů.
+- Hledá se ve sloupci `note`. Import do něj skládá popis i protistranu, samostatné sloupce transakce nemá.
+- Filtruje se na klientu (`src/utils/transactionFilter.js`): `loadAll` po stránkách načítá všechny transakce prostoru do store, takže dotazy do Supabase by nic nezrychlily a offline by nefungovaly. Vykresluje se po 200 výsledcích s tlačítkem „Zobrazit další“, kvůli výkonu DOM na telefonu.
+- Filtry drží `src/state/transactionFilter.js` v `sessionStorage`: přežijí přepnutí obrazovky i obnovení stránky a platí pro jednoho uživatele a prostor.
+- Bez filtru obrazovka dál listuje po měsících. Se zapnutým filtrem bez zvoleného období se hledá v celé historii, proto je v období navíc volba „Celá historie“.
+- Výsledky obsahují jen transakce. Převody nemají typ ani kategorii a do součtů nepatří, zůstávají v procházení po měsících.
+
+### 2026-11-05 – Migrace 009: počáteční zůstatek účtu (databáze)
+- Nová migrace `supabase/migrations/009_opening_balance.sql`, stejná úprava je v `schema.sql`. Sloupce `accounts.opening_balance` a `accounts.opening_balance_date` platí jen společně. Účet bez nich se počítá jako dosud, takže se stávající zůstatky nemění.
+- Práva řeší stávající politiky `accounts`: osobní účet mění vlastník, skupinový owner a editor. UI zatím není hotové.
+
+### 2026-11-05 – Import: ABO/GPC, Revolut a univerzální CSV s mapováním sloupců
+- **ABO/GPC** (`src/importers/gpc.js`): soubory `.gpc`, `.abo` a `.txt`.
+  - Pozice polí podle veřejné specifikace ABO (dokumentace webwingscz/bank-statements a jakubzapletal/bank-statements). Čte se po bajtech, takže pozice sedí i v souboru uloženém jako UTF-8.
+  - Záznamy 074 (zůstatky), 075 (transakce), 076 (název protistrany), 078/079 (zpráva). Ostatní řádky a hlavička UHL1 se přeskočí.
+  - Dialekty: standard (storna 4/5), Česká spořitelna (storna 3/4), Fio / ČSOB (kód měny v bajtech 118–122). Hlavička 074 kód banky neobsahuje, proto se dialekt pozná z obsahu: kód 3 znamená ČS, platný kód měny u všech transakcí znamená Fio / ČSOB, nejednoznačný kód 4 rozhodne kontrola zůstatků. V importu jde dialekt přepnout.
+  - Otisk: `gpc:<účet>:<datum>:<částka v haléřích>:<číslo dokladu>`, bez čísla dokladu společný hash.
+- **Revolut** (`src/importers/revolut.js`): anglický i český export osobního účtu, sloupce podle názvů. Datum dokončení, případně zahájení. Řádky s jiným stavem než dokončeno jsou označené a předem nezaškrtnuté. Poplatek je zvláštní výdaj „Poplatek Revolut“. Otisk z času zahájení, částky, popisu a měny. Byznys export se nerozpozná.
+- **Univerzální import** (`src/importers/universal.js`): volba „Jiná banka (vlastní mapování)“, nabídne se sama, když soubor nepozná žádná banka.
+  - Rozpozná kódování, oddělovač (`;`, `,`, tabulátor), řádek hlavičky pod metadaty, formát data a čísla včetně mínusu na konci.
+  - Krok mapování ukáže prvních 5 řádků, navrhne sloupce podle názvů a průběžně kontroluje výsledek. Jde zvolit jedna částka, nebo dvojice Příjem / Výdaj.
+  - Mapování se uloží jako šablona podle otisku hlavičky (`src/services/importTemplates.js`, localStorage pro každého uživatele). Správa je v Nastavení → Pravidla importu → Uložené šablony bank.
+- **Náhled:** nově kontrola zůstatků u výpisů, které je nesou (KB, ABO), a stav pro nezaúčtované řádky. V importu je nápověda k formátu ABO/GPC.
+- Testy a anonymizované ukázky v `tests/fixtures/`. README: tabulka podporovaných bank. Změny databáze nejsou potřeba.
 
 ### 2026-11-05 – Import transakcí z CSV výpisu banky
 - Ve formuláři **+** je nahoře tlačítko „Importovat z banky (CSV)“. Průběh: soubor → banka (předvybraná podle formátu) → účet z aktuálního prostoru → náhled → „Importovat X transakcí“ → toast „Importováno X, přeskočeno Y duplicit“. Soubor se zpracuje jen v prohlížeči. Pozorovatel ve skupině import nevidí.

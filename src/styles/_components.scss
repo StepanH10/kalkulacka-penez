@@ -427,6 +427,8 @@
 
 // Seznamy
 .list {
+  // bez omezení by dlouhý text roztáhl sloupec a ořízl částky vpravo
+  grid-template-columns: minmax(0, 1fr);
   display: grid;
 }
 

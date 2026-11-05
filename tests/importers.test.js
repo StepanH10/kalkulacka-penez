@@ -100,7 +100,8 @@ test('KB parse: číslo karty, účtu, IBAN ani název účtu se nikam nedostano
 })
 
 test('KB meta: období výpisu', () => {
-  assert.deepEqual(kb.meta(kbText()), { from: '2026-10-01', to: '2026-10-31' })
+  const { from, to } = kb.meta(kbText())
+  assert.deepEqual({ from, to }, { from: '2026-10-01', to: '2026-10-31' })
 })
 
 const KB_HEAD = 'Datum zauctovani;Datum provedeni;Protistrana;Nazev protiuctu;Castka;Mena;VS;Identifikace transakce;Typ transakce;Popis pro me;Zprava pro prijemce'
@@ -211,4 +212,310 @@ test('sameRule a ruleTextFor', () => {
   assert.equal(sameRule('LÍDL', 'expense', rules, categories)?.id, 'a')
   assert.equal(sameRule('lidl', 'income', rules, categories), null)
   assert.equal(ruleTextFor({ counterparty: '', description: 'x'.repeat(80) }).length, 60)
+})
+
+// ---------------------------------------------------------------- obecné utility (univerzální import, Revolut)
+
+test('parseNumber: běžné zápisy čísel', async () => {
+  const { parseNumber } = await import('../src/importers/utils.js')
+  const cases = [
+    ['-1 234,50', 'auto', -1234.5],
+    ['1.234,50', 'auto', 1234.5],
+    ['1,234.50', 'auto', 1234.5],
+    ['-49.80', '.', -49.8],
+    ['123,45-', 'auto', -123.45],
+    ['1 234,50-', ',', -1234.5],
+    ['(12,50)', 'auto', -12.5],
+    ['−5', 'auto', -5],
+    ['1 275 Kč', 'auto', 1275],
+    ['-1,25 CZK', 'auto', -1.25],
+    ['+10', ',', 10],
+  ]
+  for (const [input, dec, expected] of cases) assert.equal(parseNumber(input, dec), expected, input)
+  for (const bad of ['', 'abc', '1,5,6', '12.34.5', '1.23,4.5']) assert.ok(Number.isNaN(parseNumber(bad)), bad)
+})
+
+test('parseDate / detectDateFormat / detectDecimal', async () => {
+  const { parseDate, detectDateFormat, detectDecimal } = await import('../src/importers/utils.js')
+  assert.equal(parseDate('1.10.2026'), '2026-10-01')
+  assert.equal(parseDate('01.10.2026 12:30'), '2026-10-01')
+  assert.equal(parseDate('2026-10-01 08:15:59'), '2026-10-01')
+  assert.equal(parseDate('2026-10-01T08:15:59Z'), '2026-10-01')
+  assert.equal(parseDate('31.02.2026'), null)
+  assert.equal(parseDate('2026-10-01', 'dmy'), null)
+  assert.equal(detectDateFormat(['2026-10-01', '2026-10-02 10:00']), 'ymd')
+  assert.equal(detectDateFormat(['1.10.2026', '15.10.2026']), 'dmy')
+  assert.equal(detectDateFormat(['abc']), null)
+  assert.equal(detectDecimal(['-49.80', '1275', '12.5']), '.')
+  assert.equal(detectDecimal(['-49,80', '1 275']), ',')
+})
+
+test('KB meta: počáteční a konečný zůstatek', () => {
+  const meta = kb.meta(kbText())
+  assert.equal(meta.opening, 20000.53)
+  assert.equal(meta.closing, 30000.89)
+})
+
+// ---------------------------------------------------------------- ABO / GPC
+
+const gpcFile = (name) => readFileSync(new URL(`./fixtures/${name}.gpc`, import.meta.url))
+const gpcParse = async (name, options = {}) => {
+  const { default: gpc } = await import('../src/importers/gpc.js')
+  const bytes = gpcFile(name)
+  const text = decodeBytes(bytes, gpc.encoding)
+  return { gpc, text, bytes, rows: gpc.parse(text, { bytes, ...options }), meta: gpc.meta(text, { bytes }) }
+}
+
+test('GPC detect: ABO soubor ano (i s hlavičkou UHL1), CSV ne', async () => {
+  const { default: gpc } = await import('../src/importers/gpc.js')
+  for (const f of ['gpc-standard', 'gpc-cs', 'gpc-fio']) assert.equal(gpc.detect(decodeBytes(gpcFile(f), 'windows-1250')), true, f)
+  assert.equal(gpc.detect(kbText()), false)
+  assert.equal(gpc.detect('075 krátký řádek'), false)
+})
+
+test('GPC standard: částky v haléřích, kódy 1/2/4/5 včetně storen, 076/078/079', async () => {
+  const { gpc, text, bytes, rows } = await gpcParse('gpc-standard')
+  assert.equal(gpc.detectVariant(text, { bytes }), 'standard')
+  assert.deepEqual(rows.map((r) => r.amount), [-49.8, 1275, 49.8, -100, -27.9])
+  assert.deepEqual(rows.map((r) => r.date), ['2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05'])
+  assert.ok(rows.every((r) => r.currency === 'CZK' && !r.error))
+  assert.equal(rows[0].description, 'LIDL DEKUJE ZA NAKUP')
+  assert.equal(rows[1].counterparty, 'Zaměstnavatel s.r.o.', 'název z 076, diakritika z windows-1250')
+  assert.equal(rows[1].description, 'Zaměstnavatel s.r.o. – výplata 9/2026 Loučení s létem druhá část zprávy')
+  assert.equal(rows[1].variableSymbol, '11111111')
+  assert.match(rows[2].description, /^Storno – /, 'storno debetu = peníze zpět')
+  assert.equal(rows[3].description, 'STORNO PRIJMU', 'popis se slovem storno bez zdvojení')
+})
+
+test('GPC: otisk = účet + datum + částka + číslo dokladu, bez dokladu hash', async () => {
+  const { rows } = await gpcParse('gpc-standard')
+  assert.equal(rows[0].externalId, '123456789:2026-10-01:-4980:101')
+  assert.equal(rows[4].externalId, '', 'doklad 0 → společný hash z data, částky a popisu')
+  const hashes = importHashes('gpc', rows)
+  assert.equal(hashes[0], 'gpc:123456789:2026-10-01:-4980:101')
+  assert.match(hashes[4], /^gpc:h:/)
+})
+
+test('GPC meta: zůstatky z hlavičky 074 a kontrola pohybů', async () => {
+  const { balanceCheck } = await import('../src/importers/index.js')
+  const { rows, meta } = await gpcParse('gpc-standard')
+  assert.equal(meta.opening, 20000.53)
+  assert.equal(meta.closing, 21147.63)
+  assert.equal(meta.from, '2026-10-01')
+  assert.equal(meta.to, '2026-10-31')
+  assert.deepEqual(balanceCheck(rows, meta), { opening: 20000.53, closing: 21147.63, sum: 1147.1, diff: 0, ok: true })
+})
+
+test('GPC Česká spořitelna: kódy 3 = storno debetu, 4 = storno kreditu', async () => {
+  const { gpc, text, bytes, rows, meta } = await gpcParse('gpc-cs')
+  assert.equal(gpc.detectVariant(text, { bytes }), 'cs', 'kód 3 používá jen ČS')
+  assert.deepEqual(rows.map((r) => r.amount), [-500, 2000, 500, -300])
+  assert.equal(rows[1].counterparty, 'Šťastný Účetní a.s.')
+  assert.ok(rows.every((r) => r.currency === 'CZK'), 'v bajtech 118–122 má ČS jiná pole → CZK')
+  const { balanceCheck } = await import('../src/importers/index.js')
+  assert.equal(balanceCheck(rows, meta).ok, true)
+})
+
+test('GPC: stejný soubor ve špatném dialektu nesedí na zůstatky', async () => {
+  const { balanceCheck } = await import('../src/importers/index.js')
+  const { rows, meta } = await gpcParse('gpc-cs', { variant: 'standard' })
+  assert.match(rows[2].error, /Neznámý kód zaúčtování „3“/)
+  assert.equal(rows[3].amount, 300, 'kód 4 by standard četl jako storno debetu')
+  assert.equal(balanceCheck(rows, meta).ok, false)
+})
+
+test('GPC: ČS bez kódu 3 – dialekt rozhodne kontrola zůstatků', async () => {
+  const { gpc, text, bytes } = await gpcParse('gpc-cs-bez-storna-debetu')
+  assert.equal(gpc.detectVariant(text, { bytes }), 'cs')
+  const { rows } = await gpcParse('gpc-cs-bez-storna-debetu', { variant: 'cs' })
+  assert.deepEqual(rows.map((r) => r.amount), [-500, 2000, -300])
+})
+
+test('GPC Fio/ČSOB: kód měny v bajtech 118–122', async () => {
+  const { gpc, text, bytes, rows } = await gpcParse('gpc-fio')
+  assert.equal(gpc.detectVariant(text, { bytes }), 'currency')
+  assert.deepEqual(rows.map((r) => r.currency), ['EUR', 'CZK'])
+  const std = gpc.parse(text, { bytes, variant: 'standard' })
+  assert.deepEqual(std.map((r) => r.currency), ['CZK', 'CZK'], 'bez dialektu s měnou se pole ignoruje')
+})
+
+test('GPC: soubor uložený jako UTF-8 – pozice polí sedí (čte se po bajtech)', async () => {
+  const { default: gpc } = await import('../src/importers/gpc.js')
+  const utf8 = new TextEncoder().encode(decodeBytes(gpcFile('gpc-cs'), 'windows-1250'))
+  const text = decodeBytes(utf8, 'windows-1250')
+  const rows = gpc.parse(text, { bytes: utf8 })
+  assert.equal(rows[1].counterparty, 'Šťastný Účetní a.s.')
+  assert.deepEqual(rows.map((r) => r.amount), [-500, 2000, 500, -300])
+})
+
+test('GPC přes registr: readStatement pozná formát i dialekt', async () => {
+  const { readStatement, parseStatement } = await import('../src/importers/index.js')
+  const { bank, variant, buffer } = await readStatement(fakeFile(gpcFile('gpc-cs')))
+  assert.equal(bank.id, 'gpc')
+  assert.equal(variant, 'cs')
+  const { rows, meta } = parseStatement(buffer, bank, { variant })
+  assert.equal(rows.length, 4)
+  assert.equal(meta.closing, 2700)
+})
+
+// ---------------------------------------------------------------- Revolut
+
+const textFixture = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), 'utf8')
+
+test('Revolut detect: anglická i česká hlavička, byznys export ne', async () => {
+  const { default: revolut } = await import('../src/importers/revolut.js')
+  assert.equal(revolut.detect(textFixture('revolut-en.csv')), true)
+  assert.equal(revolut.detect(textFixture('revolut-cs.csv')), true)
+  const business = 'Date started (UTC),Date completed (UTC),ID,Type,State,Description,Reference,Payer,Card number,Orig currency,Orig amount,Payment currency,Amount,Fee,Balance,Account,Beneficiary account number\n'
+  assert.equal(revolut.detect(business), false)
+  assert.equal(revolut.detect('Type,Product,Started Date,Completed Date,Description,Amount,Fee,Currency,State,Balance,ID\n'), false, 'sloupec navíc = jiný export')
+  assert.equal(revolut.detect(kbText()), false)
+})
+
+test('Revolut EN: datum dokončení, stavy, poplatek jako zvláštní výdaj, typ jen bez popisu', async () => {
+  const { default: revolut } = await import('../src/importers/revolut.js')
+  const rows = revolut.parse(textFixture('revolut-en.csv'))
+  const summary = rows.map((r) => [r.date, r.amount, r.description, r.warning ?? '', r.error ?? ''])
+  assert.deepEqual(summary, [
+    ['2026-10-01', 500, 'Top-up by *1111', '', ''],
+    ['2026-10-03', -149.9, 'Lidl', '', ''],
+    ['2026-10-04', -89, 'Bolt', 'Stav „PENDING“ – není zaúčtováno', ''],
+    ['2026-10-05', -100, 'TRANSFER', '', ''],
+    ['2026-10-06', -200, 'Exchanged to EUR', '', ''],
+    ['2026-10-06', -1.25, 'Poplatek Revolut – Exchanged to EUR', '', ''],
+    ['2026-10-07', -9.9, 'Poplatek Revolut – Premium plan fee', '', ''],
+    ['2026-10-08', -149.9, 'Lidl', 'Stav „REVERTED“ – není zaúčtováno', ''],
+  ])
+  assert.ok(rows.every((r) => r.currency === 'CZK'))
+})
+
+test('Revolut: otisk z času zahájení, částky, popisu a měny; poplatek vlastní otisk', async () => {
+  const { default: revolut } = await import('../src/importers/revolut.js')
+  const rows = revolut.parse(textFixture('revolut-en.csv'))
+  const hashes = importHashes('revolut', rows)
+  assert.equal(new Set(hashes).size, hashes.length, 'každý řádek má jiný otisk (i dva nákupy v Lidlu)')
+  assert.ok(hashes.every((h) => h.startsWith('revolut:')))
+  assert.equal(hashes[5], `${hashes[4]}:fee`)
+  assert.deepEqual(importHashes('revolut', revolut.parse(textFixture('revolut-en.csv'))), hashes, 'opakovaný import = stejné otisky')
+})
+
+test('Revolut CZ: české názvy sloupců, DOKONČENO, cizí měna', async () => {
+  const { default: revolut } = await import('../src/importers/revolut.js')
+  const rows = revolut.parse(textFixture('revolut-cs.csv'))
+  assert.deepEqual(rows.map((r) => [r.date, r.amount, r.currency, r.counterparty, r.warning ?? '']), [
+    ['2026-10-03', -4.5, 'EUR', 'Kavárna Šťastná', ''],
+    ['2026-10-01', 100, 'EUR', 'Dobití z karty *1111', ''],
+    ['2026-10-04', -12, 'EUR', 'Uber', 'Stav „ČEKAJÍCÍ“ – není zaúčtováno'],
+  ])
+  const { from, to } = revolut.meta(textFixture('revolut-cs.csv'))
+  assert.deepEqual([from, to], ['2026-10-01', '2026-10-04'])
+})
+
+test('Revolut přes registr', async () => {
+  const { readStatement, parseStatement } = await import('../src/importers/index.js')
+  const file = fakeFile(new TextEncoder().encode(textFixture('revolut-en.csv')))
+  const { bank, buffer } = await readStatement(file)
+  assert.equal(bank.id, 'revolut')
+  assert.equal(parseStatement(buffer, bank).rows.length, 8)
+})
+
+// ---------------------------------------------------------------- univerzální import (mapování sloupců)
+
+const universalOf = async (bytesOrName) => {
+  const u = await import('../src/importers/universal.js')
+  const bytes = typeof bytesOrName === 'string' ? readFileSync(new URL(`./fixtures/${bytesOrName}`, import.meta.url)) : bytesOrName
+  const text = decodeBytes(bytes, 'auto')
+  return { u, text, info: u.analyze(text) }
+}
+
+test('univerzální: středník, windows-1250, metadata nad hlavičkou, mínus na konci', async () => {
+  const { u, text, info } = await universalOf('csv-strednik-cp1250.csv')
+  assert.equal(info.delimiter, ';')
+  assert.equal(info.headerIndex, 4, 'úvodní metadata se přeskočí')
+  assert.equal(info.header[2], 'Název protiúčtu', 'diakritika z windows-1250')
+  assert.equal(info.samples.length, 4)
+  const m = info.config.mapping
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(m).map(([k, i]) => [k, info.header[i] ?? null])),
+    {
+      date: 'Datum provedení',
+      amount: 'Částka',
+      income: null,
+      expense: null,
+      vs: 'Variabilní symbol',
+      id: 'Identifikace transakce',
+      counterparty: 'Název protiúčtu',
+      message: 'Zpráva pro příjemce',
+    },
+  )
+  assert.equal(info.config.dateFormat, 'dmy')
+  assert.equal(info.config.decimal, ',')
+  const rows = u.default.parse(text, { config: info.config })
+  assert.equal(rows.length, 3, 'prázdný řádek a zápatí „Celkem“ bez data se přeskočí')
+  assert.deepEqual(rows.map((r) => [r.date, r.amount, r.description, r.variableSymbol, r.externalId]), [
+    ['2026-10-01', -1234.5, 'Lidl Česká republika – nákup potravin', '', 'ID-0001'],
+    ['2026-10-03', 25000, 'Zaměstnavatel s.r.o. – výplata 9/2026', '11111111', 'ID-0002'],
+    ['2026-10-04', -250, 'Kavárna Šťastná', '', 'ID-0003'],
+  ])
+  assert.deepEqual(importHashes('csv', rows).slice(0, 1), ['csv:ID-0001'])
+})
+
+test('univerzální: čárka, uvozovky, ISO datum, sloupce Příjem / Výdaj, desetinná tečka', async () => {
+  const { u, text, info } = await universalOf('csv-carka-prijem-vydaj.csv')
+  assert.equal(info.delimiter, ',')
+  assert.equal(info.headerIndex, 0)
+  const m = info.config.mapping
+  assert.equal(m.amount, -1)
+  assert.equal(info.header[m.income], 'Příjem')
+  assert.equal(info.header[m.expense], 'Výdaj')
+  assert.equal(info.header[m.counterparty], 'Popis', 'bez protistrany jde popis do hlavního pole')
+  assert.equal(m.message, -1)
+  assert.equal(info.config.dateFormat, 'ymd')
+  assert.equal(info.config.decimal, '.')
+  const rows = u.default.parse(text, { config: info.config })
+  assert.deepEqual(rows.map((r) => [r.date, r.amount, r.description, r.variableSymbol]), [
+    ['2026-10-01', -12500, 'Nájem, říjen', '2026001'],
+    ['2026-10-02', 1000.5, 'Vrácení přeplatku', ''],
+    ['2026-10-05', -189, 'Kino', ''],
+  ])
+  const hashes = importHashes('csv', rows)
+  assert.ok(hashes.every((h) => h.startsWith('csv:h:')), 'bez ID transakce hash z data, částky a popisu')
+})
+
+test('univerzální: tabulátor, ruční přepnutí formátu, chyby mapování', async () => {
+  const { u } = await universalOf(new TextEncoder().encode('Datum\tČástka\tPopis\n01/10/2026\t1.234,5\tA\n02/10/2026\t-10\tB\n'))
+  const text = 'Datum\tČástka\tPopis\n01/10/2026\t1.234,5\tA\n02/10/2026\t-10\tB\n'
+  const info = u.analyze(text)
+  assert.equal(info.delimiter, '\t')
+  assert.deepEqual(u.default.parse(text, { config: info.config }).map((r) => r.amount), [1234.5, -10])
+  const asDot = u.default.parse(text, { config: { ...info.config, decimal: '.' } })
+  assert.match(asDot[0].error, /Neplatná částka/, 'ruční přepnutí na desetinnou tečku')
+  assert.equal(u.mappingError({ date: -1, amount: 1 }), 'Přiřaďte sloupec s datem.')
+  assert.match(u.mappingError({ date: 0, amount: -1, income: -1, expense: -1 }), /částkou/)
+  assert.equal(u.mappingError({ date: 0, amount: -1, income: 2, expense: -1 }), '')
+  assert.throws(() => u.default.parse(text, { config: { ...info.config, mapping: { date: -1 } } }), (e) => /datem/.test(e.czMessage))
+  assert.throws(() => u.analyze('jen text bez tabulky\na další řádek'), (e) => /hlavičku/.test(e.czMessage))
+})
+
+test('univerzální: otisk hlavičky pro šablonu nezávisí na diakritice a velikosti', async () => {
+  const { headerKey } = await import('../src/importers/universal.js')
+  assert.equal(headerKey(['Datum', 'Částka']), headerKey(['DATUM', 'Castka']))
+  assert.notEqual(headerKey(['Datum', 'Částka']), headerKey(['Datum', 'Částka', 'Popis']))
+})
+
+test('registr: neznámé CSV → univerzální import, KB/Revolut/GPC se nepletou', async () => {
+  const { readStatement, parseStatement, bankById, UNIVERSAL_ID } = await import('../src/importers/index.js')
+  const file = fakeFile(readFileSync(new URL('./fixtures/csv-strednik-cp1250.csv', import.meta.url)))
+  const { bank, buffer, text } = await readStatement(file)
+  assert.equal(bank, null)
+  assert.ok(text.includes('Název protiúčtu'), 'neznámý soubor se dekóduje jako windows-1250')
+  const u = bankById(UNIVERSAL_ID)
+  const { analyze } = await import('../src/importers/universal.js')
+  const { config } = analyze(text)
+  const { rows } = parseStatement(buffer, u, { config })
+  assert.equal(rows.length, 3)
+  for (const [name, id] of [['kb-sample.csv', 'kb'], ['gpc-standard.gpc', 'gpc'], ['revolut-cs.csv', 'revolut']]) {
+    const r = await readStatement(fakeFile(readFileSync(new URL(`./fixtures/${name}`, import.meta.url))))
+    assert.equal(r.bank?.id, id, name)
+  }
 })

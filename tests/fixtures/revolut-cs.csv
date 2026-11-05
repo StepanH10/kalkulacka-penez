@@ -1,0 +1,4 @@
+Typ,Produkt,Datum zahájení,Datum dokončení,Popis,Částka,Poplatek,Měna,Stav,Zůstatek
+CARD_PAYMENT,Aktuální,2026-10-02 12:30:01,2026-10-03 09:00:00,Kavárna Šťastná,-4.50,0.00,EUR,DOKONČENO,95.50
+TOPUP,Aktuální,2026-10-01 08:12:45,2026-10-01 08:12:47,Dobití z karty *1111,100.00,0.00,EUR,DOKONČENO,100.00
+CARD_PAYMENT,Aktuální,2026-10-04 19:45:10,,Uber,-12.00,0.00,EUR,ČEKAJÍCÍ,95.50

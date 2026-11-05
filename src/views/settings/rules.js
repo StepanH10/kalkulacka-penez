@@ -4,6 +4,7 @@ import { getState, subscribe } from '../../state/store.js'
 import { categoriesByType, categoryMap } from '../../state/selectors.js'
 import { createRow, updateRow, deleteRow } from '../../services/api.js'
 import { sameRule } from '../../importers/categorize.js'
+import { listTemplates, renameTemplate, deleteTemplate } from '../../services/importTemplates.js'
 import { openSheet, confirmDialog } from '../../components/sheet.js'
 import { showToast } from '../../components/toast.js'
 import { subHeader, addButton } from './common.js'
@@ -11,6 +12,7 @@ import { canEdit } from '../../state/space.js'
 import { esc, setLoading, setFieldError, clearErrors } from '../../utils/dom.js'
 import { icon } from '../../utils/icons.js'
 import { translateError } from '../../utils/errors.js'
+import { formatDate, toISODate } from '../../utils/dates.js'
 
 const TYPE_LABEL = { expense: 'Výdaje', income: 'Příjmy' }
 
@@ -99,6 +101,79 @@ function openRuleForm(rule = null) {
   })
 }
 
+function openTemplateForm(template, onChange) {
+  openSheet({
+    title: 'Šablona banky',
+    body: `
+      <form class="form" novalidate>
+        <label class="field">
+          <span class="field__label">Název</span>
+          <input class="input" name="name" maxlength="40" value="${esc(template.name)}" autocomplete="off" autofocus>
+          <span class="field__error" data-error-for="name"></span>
+        </label>
+        <p class="muted" style="font-size:.8125rem">Sloupce: ${esc((template.header ?? []).filter(Boolean).join(', '))}</p>
+        <div class="sheet__actions">
+          <button type="button" class="btn btn--danger" data-delete>Smazat</button>
+          <button type="submit" class="btn btn--primary">Uložit</button>
+        </div>
+      </form>`,
+    onMount(body, close) {
+      const form = body.querySelector('form')
+      body.querySelector('[data-delete]').addEventListener('click', async () => {
+        const ok = await confirmDialog({
+          title: 'Smazat šablonu?',
+          message: 'Příště bude potřeba sloupce přiřadit znovu. Transakce zůstanou beze změny.',
+          confirmLabel: 'Smazat',
+          danger: true,
+        })
+        if (!ok) return
+        deleteTemplate(template.key)
+        showToast('Šablona smazána')
+        onChange()
+        close()
+      })
+      form.addEventListener('submit', (e) => {
+        e.preventDefault()
+        clearErrors(form)
+        const name = form.elements.name.value.trim()
+        if (!name) return setFieldError(form, 'name', 'Zadejte název šablony.')
+        renameTemplate(template.key, name)
+        showToast('Šablona přejmenována')
+        onChange()
+        close()
+      })
+    },
+  })
+}
+
+function templatesHtml() {
+  const templates = listTemplates()
+  return `
+    <section class="section">
+      <h2>Uložené šablony bank</h2>
+      <p class="muted" style="margin:0 0 12px;font-size:.875rem">Přiřazení sloupců z importu „Jiná banka“. Ukládá se jen v tomto prohlížeči.</p>
+      ${
+        templates.length
+          ? `<div class="card card--flush list">
+              ${templates
+                .map(
+                  (t) => `
+                  <button type="button" class="list-row" data-template="${esc(t.key)}">
+                    <div class="list-row__icon">${icon('landmark', { size: 18 })}</div>
+                    <div class="list-row__body">
+                      <div class="list-row__title">${esc(t.name)}</div>
+                      <div class="list-row__sub">${(t.header ?? []).length} sloupců${t.updatedAt ? ` · ${esc(formatDate(toISODate(new Date(t.updatedAt))))}` : ''}</div>
+                    </div>
+                    ${icon('chevron-right', { size: 18 })}
+                  </button>`,
+                )
+                .join('')}
+            </div>`
+          : `<p class="muted" style="font-size:.875rem">Zatím žádné šablony. Vzniknou při importu přes „Jiná banka (vlastní mapování)“.</p>`
+      }
+    </section>`
+}
+
 export default function rulesView(el) {
   const draw = () => {
     const state = getState()
@@ -133,10 +208,18 @@ export default function rulesView(el) {
                 ? 'Zatím žádná pravidla. Vytvoříte je tady, nebo při importu po ruční změně kategorie.'
                 : 'Zatím žádná pravidla importu.'
             }</p></div>`
-      }`
+      }
+      ${templatesHtml()}`
   }
 
   const onClick = (e) => {
+    // šablony jsou osobní v prohlížeči, netýkají se práv ve skupině
+    const tpl = e.target.closest('[data-template]')
+    if (tpl) {
+      const template = listTemplates().find((t) => t.key === tpl.dataset.template)
+      if (template) openTemplateForm(template, draw)
+      return
+    }
     if (!canEdit()) return
     if (e.target.closest('[data-add]')) return openRuleForm()
     const row = e.target.closest('[data-rule]')
