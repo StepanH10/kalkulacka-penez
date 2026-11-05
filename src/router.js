@@ -15,6 +15,7 @@ import categoriesView from './views/settings/categories.js'
 import budgetsView from './views/settings/budgets.js'
 import recurringView from './views/settings/recurring.js'
 import groupView from './views/settings/group.js'
+import rulesView from './views/settings/rules.js'
 import joinView from './views/join.js'
 
 // guest: jen pro nepřihlášené, auth: jen pro přihlášené, jinak veřejné
@@ -32,6 +33,7 @@ const ROUTES = {
   '/settings/categories': { view: categoriesView, auth: true, nav: 'settings', title: 'Kategorie' },
   '/settings/budgets': { view: budgetsView, auth: true, nav: 'settings', title: 'Rozpočty' },
   '/settings/recurring': { view: recurringView, auth: true, nav: 'settings', title: 'Opakované platby' },
+  '/settings/rules': { view: rulesView, auth: true, nav: 'settings', title: 'Pravidla importu' },
   '/settings/group': { view: groupView, auth: true, nav: 'settings', title: 'Skupina' },
 }
 

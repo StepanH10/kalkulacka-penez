@@ -366,3 +366,193 @@
     min-height: var(--touch);
   }
 }
+
+// Import z CSV výpisu banky
+.import-entry {
+  color: var(--accent);
+}
+
+.import-file {
+  position: relative;
+  cursor: pointer;
+
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.import-summary {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 12px;
+  font-size: 0.875rem;
+}
+
+.import-all {
+  margin: 0 0 8px -8px;
+}
+
+.import-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.import-row {
+  display: flex;
+  gap: 4px;
+  padding: 10px 14px 12px 4px;
+  border-top: 1px solid var(--border);
+
+  &:first-child {
+    border-top: 0;
+  }
+
+  &.is-off .import-row__top {
+    color: var(--text-muted);
+  }
+}
+
+// celé pole kolem zaškrtávátka je dotykový cíl 44 px
+.import-row__check {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--touch);
+  height: var(--touch);
+  margin-top: -10px;
+  cursor: pointer;
+
+  input {
+    width: 20px;
+    height: 20px;
+    margin: 0;
+    accent-color: var(--accent);
+  }
+}
+
+.import-row__body {
+  display: grid;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+}
+
+.import-row__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9375rem;
+
+  .num {
+    flex: none;
+    font-weight: 600;
+  }
+}
+
+.import-row__desc {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.import-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.import-badge {
+  padding: 2px 8px;
+  gap: 4px;
+
+  &--new {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  &--muted {
+    background: var(--hover);
+    color: var(--text-muted);
+  }
+
+  &--danger {
+    background: var(--expense-soft);
+    color: var(--expense);
+  }
+}
+
+.select--sm {
+  min-height: var(--touch);
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 0.9375rem;
+}
+
+.import-rule {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  animation: import-rule-in 180ms var(--ease);
+
+  &[hidden] {
+    display: none;
+  }
+
+  .btn {
+    min-height: var(--touch);
+  }
+}
+
+.import-rule__q {
+  font-size: 0.875rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+@keyframes import-rule-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+// akce zůstávají při posouvání dlouhého náhledu vidět
+.import-actions {
+  position: sticky;
+  bottom: calc(-20px - var(--safe-bottom));
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  margin: 16px -20px calc(-20px - var(--safe-bottom));
+  padding: 12px 20px calc(12px + var(--safe-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--card);
+
+  @include desktop {
+    bottom: -24px;
+    margin-bottom: -24px;
+    padding-bottom: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .import-rule {
+    animation: none;
+  }
+}

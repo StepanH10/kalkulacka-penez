@@ -9,6 +9,7 @@ Repozitář: https://github.com/StepanH10/kalkulacka-penez
 - `npm run dev` – vývojový server (http://localhost:5173)
 - `npm run build` – produkční build do `dist/` (generuje i service worker)
 - `npm run preview` – náhled produkčního buildu
+- `npm test` – unit testy (`node --test`, `tests/**/*.test.js`)
 
 Bez `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) aplikace zobrazí jen hlášku o chybějícím nastavení.
 
@@ -20,6 +21,7 @@ Bez `.env` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) aplikace zobrazí jen
 - `src/state/space.js` – aktuální prostor (osobní / skupina) a oprávnění: `canEdit`, `canManage`, `canModifyEntry`, `authorName`. Store drží vždy data **jen zvoleného prostoru** (`state.space`: null = osobní, jinak id skupiny). `loadAll` filtruje podle `group_id` a `createRow` doplní `group_id` sám, takže obrazovky prostor neřeší.
 - `src/services/invites.js` – pozvánky (tag, odkaz/QR, přijetí, odmítnutí); RPC s limitem pokusů vrací `{ ok, message }`, služba neúspěch převede na chybu
 - `src/services/notifications.js` – upozornění: přečtení a Realtime (`watchNotifications` v `main.js`); texty podle typu jsou v `components/notificationPanel.js` → nový typ upozornění = trigger v DB + větev v `describeNotification`
+- `src/importers/` – import CSV výpisů: jedna banka = jeden soubor (`kb.js`: `id`, `name`, `encoding`, `detect`, `parse`, volitelně `meta`) zapsaný v `BANKS` v `index.js`. Bez závislostí na DOM / store, aby šly testovat v Node. Návrh kategorií je v `categorize.js`, UI v `components/importSheet.js`, pravidla v `views/settings/rules.js` (stav `rules` = tabulka `import_rules`). Vkládá `importTransactions` v `api.js` (upsert s `ignoreDuplicates` na `(account_id, import_hash)`). Návod je v README „Jak přidat další banku“.
 - `src/services/groups.js` – přepnutí prostoru, vytvoření / přejmenování / smazání skupiny, role, odebrání, opuštění, předání vlastnictví
 - Nová editační akce v UI = skrýt ji podle `canEdit()` / `canManage()` / `canModifyEntry()` (databáze to hlídá vždy, UI jen nenabízí, co neprojde).
 - `src/services/api.js` – `loadAll`, generické `createRow/updateRow/deleteRow/restoreRow` podle klíče stavu (mapování v `TABLES`)

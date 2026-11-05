@@ -14,6 +14,7 @@ export const TABLES = {
   entries: 'savings_entries',
   budgets: 'budgets',
   recurring: 'recurring',
+  rules: 'import_rules',
 }
 
 const PAGE = 1000
@@ -200,6 +201,34 @@ export async function reassignCategory(fromId, toId) {
     const { error } = await supabase.from(table).update({ category_id: toId }).eq('category_id', fromId)
     if (error) throw error
   }
+}
+
+/**
+ * Hromadně vloží importované transakce do aktuálního prostoru.
+ * Řádek se stejným (account_id, import_hash) databáze přeskočí
+ * (on conflict do nothing), takže opakovaný import nic nezdvojí.
+ * Vrací { inserted, skipped }.
+ */
+export async function importTransactions(rows) {
+  ensureOnline()
+  const base = { user_id: currentUser().id, group_id: getState().space ?? null }
+  const inserted = []
+  for (let i = 0; i < rows.length; i += 500) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .upsert(
+        rows.slice(i, i + 500).map((r) => ({ ...r, ...base })),
+        { onConflict: 'account_id,import_hash', ignoreDuplicates: true },
+      )
+      .select()
+    if (error) {
+      if (inserted.length) commit('transactions', [...getState().transactions, ...inserted])
+      throw error
+    }
+    inserted.push(...data)
+  }
+  commit('transactions', [...getState().transactions, ...inserted])
+  return { inserted: inserted.length, skipped: rows.length - inserted.length }
 }
 
 /** Vrátí smazaný řádek zpět (tlačítko „Zpět“). */

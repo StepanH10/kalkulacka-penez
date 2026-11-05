@@ -132,6 +132,7 @@ export default function settingsView(el) {
           ${menuLink('/settings/categories', 'tag', 'Kategorie')}
           ${menuLink('/settings/budgets', 'target', 'Rozpočty')}
           ${menuLink('/settings/recurring', 'repeat', 'Opakované platby')}
+          ${menuLink('/settings/rules', 'wand-sparkles', 'Pravidla importu')}
         </div>
       </section>
 

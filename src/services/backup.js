@@ -6,7 +6,7 @@ import { downloadFile } from '../utils/dom.js'
 import { today } from '../utils/dates.js'
 
 // Pořadí respektuje cizí klíče
-const ORDER = ['accounts', 'categories', 'recurring', 'transactions', 'transfers', 'goals', 'entries', 'budgets']
+const ORDER = ['accounts', 'categories', 'recurring', 'transactions', 'transfers', 'goals', 'entries', 'budgets', 'rules']
 
 const strip = ({ user_id: _u, kind: _k, ...rest }) => rest
 

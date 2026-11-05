@@ -121,6 +121,11 @@ export function openTransactionSheet({ item = null, mode: initialMode } = {}) {
     body: `
       <form class="form" novalidate>
         ${
+          isEdit
+            ? ''
+            : `<button type="button" class="btn btn--block import-entry" data-import>${icon('landmark', { size: 18 })}Importovat z banky (CSV)</button>`
+        }
+        ${
           availableModes.length > 1
             ? `<div class="segmented" role="group" aria-label="Typ">
                 ${availableModes.map(([m, label]) => `<button type="button" data-mode="${m}" aria-pressed="${m === mode}">${label}</button>`).join('')}
@@ -253,6 +258,12 @@ export function openTransactionSheet({ item = null, mode: initialMode } = {}) {
           }
           renderMode()
           return
+        }
+        if (e.target.closest('[data-import]')) {
+          close()
+          // načte se až při prvním importu (parser a náhled nejsou potřeba jinde)
+          const { openImportSheet } = await import('./importSheet.js')
+          return openImportSheet()
         }
         if (e.target.closest('[data-add-category]')) return toggleNewCategory(true)
         if (e.target.closest('[data-category-cancel]')) return toggleNewCategory(false)

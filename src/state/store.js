@@ -1,6 +1,6 @@
 // Jednoduchý globální stav s odběrem změn a offline cache v localStorage
 
-const DATA_KEYS = ['accounts', 'categories', 'transactions', 'transfers', 'goals', 'entries', 'budgets', 'recurring']
+const DATA_KEYS = ['accounts', 'categories', 'transactions', 'transfers', 'goals', 'entries', 'budgets', 'recurring', 'rules']
 
 const emptyData = () => Object.fromEntries(DATA_KEYS.map((k) => [k, []]))
 

@@ -18,6 +18,7 @@ Mobile-first webová aplikace (PWA) pro osobní finance: zapisování výdajů, 
 - Měsíční rozpočty s upozorněním při 80 % a 100 %
 - Opakované transakce (týdně / měsíčně), automaticky zapsané při otevření aplikace
 - Export a import zálohy (JSON), export transakcí do CSV
+- Import transakcí z CSV výpisu banky (zatím Komerční banka): náhled, kontrola duplicit, automatické kategorie podle pravidel. Soubor se zpracuje jen v prohlížeči
 - Světlý a tmavý režim (podle systému nebo ručně)
 
 ## Technologie
@@ -47,6 +48,7 @@ src/
     auth.js                registrace, přihlášení, hesla, smazání účtu
     api.js                 načítání dat, CRUD, opakované platby
     backup.js              export/import JSON, export CSV
+  importers/               import CSV výpisů: jedna banka = jeden soubor (kb.js), registr, utility, kategorie
   state/
     store.js               globální stav + offline cache
     selectors.js           výpočty (zůstatky, součty, rozpočty)
@@ -54,9 +56,55 @@ src/
   views/                   obrazovky (přihlášení, přehled, statistiky, spoření, nastavení…)
   utils/                   formátování, data, ikony, validace, překlad chyb, motiv
   styles/                  SCSS: tokeny, základ, layout, komponenty, obrazovky
+tests/                     unit testy (npm test), fixtures/ s anonymizovanými výpisy
 ```
 
+## Jak přidat další banku
+Import výpisů je v [src/importers/](src/importers/). Každá banka je jeden soubor se stejným rozhraním a soubor nikam neodchází, vše běží v prohlížeči.
+
+1. Vytvořte `src/importers/<banka>.js` podle vzoru [kb.js](src/importers/kb.js):
+   ```js
+   import { importError, parseCSV, isBlankRow, parseCzechNumber, parseCzechDate } from './utils.js'
+
+   export default {
+     id: 'fio',                 // krátké id, je i prefixem otisku duplicit („fio:<id transakce>“)
+     name: 'Fio banka',         // název v nabídce bank
+     encoding: 'utf-8',         // kódování CSV z banky (TextDecoder)
+     detect(text) { … },        // true, když text vypadá jako výpis této banky
+     parse(text) { … },         // pole { date, amount, currency, description, counterparty, variableSymbol, externalId }
+     meta(text) { … },          // volitelné: { from, to } – období výpisu do náhledu
+   }
+   ```
+   - `date` je `YYYY-MM-DD` (`parseCzechDate`). `amount` je číslo, záporné pro výdaj a kladné pro příjem (`parseCzechNumber`). `currency` je kód měny.
+   - `description` se ukládá jako poznámka transakce (max. 200 znaků). `externalId` je jedinečné ID transakce z banky a slouží ke kontrole duplicit. Když ho banka nemá, nechte ho prázdné a otisk se spočítá z data, částky, protistrany a popisu.
+   - Sloupce hledejte podle názvu v hlavičce, ne podle pořadí. Prázdné řádky přeskočte (`isBlankRow`).
+   - Řádek, který nejde přečíst, vraťte s `error: 'Neplatné datum …'`. V náhledu se ukáže jako „přeskočí se“.
+   - Chybějící hlavičku nebo jiný nečitelný formát hlaste přes `throw importError('…česky…')`.
+   - Čísla karet, čísla účtů ani IBAN nevracejte.
+2. Přidejte banku do pole `BANKS` v [src/importers/index.js](src/importers/index.js).
+3. Uložte anonymizovanou ukázku výpisu do `tests/fixtures/<banka>-sample.csv` ve stejném kódování, jaké používá banka. Do `tests/importers.test.js` přidejte testy `detect`, `parse` a toho, že se citlivé údaje nikam nedostanou. Spusťte `npm test`.
+
+Limity (5 MB, 2000 řádků), dekódování, duplicity, náhled i pravidla kategorií jsou společné, nová banka je nepotřebuje řešit.
+
 ## Deník změn
+
+### 2026-11-05 – Import transakcí z CSV výpisu banky
+- Ve formuláři **+** je nahoře tlačítko „Importovat z banky (CSV)“. Průběh: soubor → banka (předvybraná podle formátu) → účet z aktuálního prostoru → náhled → „Importovat X transakcí“ → toast „Importováno X, přeskočeno Y duplicit“. Soubor se zpracuje jen v prohlížeči. Pozorovatel ve skupině import nevidí.
+- Náhled ukazuje u každého řádku datum, popis, částku, navrženou kategorii a stav: Nová / Duplicita – přeskočí se / Cizí měna – zkontrolujte / chyba řádku. Kategorii jde změnit a řádek odškrtnout. Po ruční změně kategorie aplikace nabídne „Zapamatovat pravidlo“ s upravitelným textem a nové pravidlo se hned použije na další řádky.
+- Parser Komerční banky (`src/importers/kb.js`):
+  - Kódování windows-1250, a pokud je soubor platné UTF-8, použije se UTF-8.
+  - Sloupce hledá podle názvu. Datum bere z „Datum provedeni“, a když chybí, z „Datum zauctovani“.
+  - Poznámka se skládá z názvu protiúčtu, zprávy pro příjemce a vlastního popisu. Typ transakce se použije, jen když je popis prázdný.
+  - Číslo karty, číslo účtu, IBAN ani název účtu se nečtou.
+- Registr bank (`src/importers/index.js`) s limity 5 MB a 2000 řádků a srozumitelnými chybami (neznámý formát, prázdný soubor, chybí hlavička). Společné utility jsou v `src/importers/utils.js`, návrh kategorií v `src/importers/categorize.js`.
+- Duplicity:
+  - Otisk řádku je `kb:<Identifikace transakce>`, bez ní hash z data, částky, protistrany a popisu s pořadím stejných plateb.
+  - Náhled označí duplicity z dřívějších importů do stejného účtu i duplicity uvnitř souboru.
+  - Vkládá se přes `upsert` s `ignoreDuplicates` (`on conflict (account_id, import_hash) do nothing`), takže se nic nezdvojí ani při souběhu.
+- Automatické kategorie: hledá se text v popisu nebo protistraně bez ohledu na velikost písmen a diakritiku. Pravidla se použijí jen u transakcí stejného typu (výdaj / příjem) a při více shodách vyhrává nejdelší. Bez pravidla se použije „Ostatní“ příslušného typu.
+- Nastavení → **Pravidla importu**: seznam, přidání, úprava a mazání. Pravidla patří do aktuálního prostoru (osobní / skupina) a jsou i v JSON záloze.
+- Unit testy (`npm test`, vestavěný `node --test`): `tests/importers.test.js` s anonymizovanou ukázkou `tests/fixtures/kb-sample.csv` (windows-1250).
+- V README je nový návod „Jak přidat další banku“.
 
 ### 2026-11-05 – Migrace 008: import z CSV (databáze)
 - Nová migrace `supabase/migrations/008_csv_import.sql`, stejná úprava je v `schema.sql`.
