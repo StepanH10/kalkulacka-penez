@@ -16,6 +16,7 @@ Mobile-first webová aplikace (PWA) pro osobní finance: zapisování výdajů, 
 - Skupiny (sdílené prostory) s rolemi vlastník / editor / pozorovatel: vlastní účty, transakce, kategorie, rozpočty a cíle; přepínač prostoru nahoře v aplikaci
 - Spořicí cíle s progress barem, vklady a výběry
 - Statistiky: donut výdajů podle kategorií, sloupcový graf příjmů a výdajů po měsících, filtr období a kategorie
+- Předplatná (záložka ve Statistikách): detektor z výdajů, přehled nákladů, příští platby, historie plateb a graf ceny, upozornění na zdražení, chybějící platbu a platbu po zrušení
 - Měsíční rozpočty s upozorněním při 80 % a 100 %
 - Opakované transakce (týdně / měsíčně), automaticky zapsané při otevření aplikace
 - Export a import zálohy (JSON), export transakcí do CSV
@@ -105,6 +106,23 @@ Import výpisů je v [src/importers/](src/importers/). Každá banka je jeden so
 Limity (5 MB, 2000 řádků), dekódování, duplicity, náhled i pravidla kategorií jsou společné, nová banka je nepotřebuje řešit.
 
 ## Deník změn
+
+### 2026-11-05 – Předplatná: aktualizace ceny, tolerance mezery, neutrální text
+- U upozornění na zdražení (v seznamu i v detailu) je tlačítko **Aktualizovat cenu**. Nastaví `amount` na poslední spárovanou částku, upozornění tím zmizí a souhrn nákladů počítá s novou cenou. Pozorovatel tlačítko nevidí.
+- Párování začíná první platbou v toleranci a šíří se oběma směry, aby po změně ceny nezmizely z historie a součtu platby za starou cenu.
+- Detektor: od 4 plateb se toleruje jedna mezera o dvojnásobném intervalu (např. měsíčně 52–70 dní). Se 3 platbami zůstává odstup přísný.
+- Text zdražení je neutrální: „Cena X vzrostla z … na …“.
+
+### 2026-11-05 – Detektor a tracker předplatných
+- Statistiky mají záložky **Přehled** a **Předplatná** (`/stats?tab=subscriptions`). Klient načítá tabulku `subscriptions` z migrace 010 (stav `subscriptions`, je i v záloze JSON). Výpočty jsou jen na klientu v `src/utils/subscriptions.js`, transakce se nikdy nevytvářejí ani nemění.
+- **Detektor:** seskupuje výdaje podle obchodníka (první část poznámky, bez diakritiky, bez čísel a ID na konci). Návrh vznikne při alespoň 3 platbách (u ročních 2), odstupech týdně 6–8, měsíčně 26–35, čtvrtletně 85–95 a ročně 350–380 dní a rozdílu částek do 15 %. Seznam známých služeb určuje jen název a pořadí, detekce funguje i bez něj.
+- Navíc proti zadání: částky se nejdřív rozdělí do skupin, takže jednorázový nákup u téhož obchodníka předplatné nezkazí. Nenabízí se platby starší než dvojnásobek intervalu, protože ty už nejspíš skončily.
+- **Návrhy:** „Sledovat“ vytvoří aktivní záznam, „Není předplatné“ záznam `ignored` (s „Zpět“). Na Přehledu je připomene postřeh „Našli jsme 3 možná předplatná“, znovu po 14 dnech nebo když přibude nový návrh. Ruční přidání stejného textu zamítnutý záznam oživí.
+- **Párování:** výdaj, poznámka obsahuje `match_text`, datum od `started_on`, částka v toleranci k očekávané nebo poslední platbě. Částka mimo toleranci se spáruje, jen když termínem sedí na interval od předchozí platby, jinak by se zdražení projevilo jako chybějící platba.
+- **Upozornění:** Zdražení (poslední platba nad tolerancí k předchozí), Platba chybí (více než 5 dní po termínu a import pokrývá termín + 5 dní), Platíte i po zrušení. Bez importu se chybějící platba nehlásí.
+- **Detail:** historie plateb, graf vývoje ceny, úprava, zrušení, nově také „Znovu sledovat“ u zrušených a smazání. Pozorovatel ve skupině vidí vše kromě návrhů a nic nemění.
+- Postřehy mají jednotně vykání v množném čísle („jste utratili“, „zbylo vám“) a ukazují blížící se platbu do 7 dní.
+- Známé omezení: `amount` je očekávaná částka a souhrn nákladů vychází z ní. Po zdražení ji upraví uživatel v detailu.
 
 ### 2026-11-05 – Oprava: stejné ID transakce v jednom výpisu není duplicita
 - KB používá stejnou „Identifikaci transakce“ pro různé platby (v ověřeném výpisu dvojice „Vyrovnávací úhrada“ se stejným datem a protistranou, ale jinou částkou). Druhý řádek dvojice se hlásil jako duplicita a nesedl zůstatek.

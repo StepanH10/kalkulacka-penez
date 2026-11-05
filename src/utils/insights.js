@@ -1,5 +1,5 @@
 // Měsíční postřehy na Přehledu: jen výpočty nad transakcemi aktuálního prostoru.
-// Bez závislostí na DOM / store. Každý postřeh nese `filter` pro obrazovku Transakce.
+// Bez závislostí na DOM / store. Každý postřeh nese `filter` pro obrazovku Transakce, nebo `href`.
 import { formatDate, parseISODate, toISODate, today } from './dates.js'
 import { formatMoney } from './format.js'
 
@@ -78,7 +78,7 @@ function monthComparison(transactions, ranges) {
 }
 
 /** Kategorie s největší absolutní změnou, která splní oba prahy. */
-function categoryChange(transactions, categories, ranges, group) {
+function categoryChange(transactions, categories, ranges) {
   const totals = new Map()
   const add = (list, key) => {
     for (const t of list) {
@@ -109,7 +109,7 @@ function categoryChange(transactions, categories, ranges, group) {
     score: more ? 75 : 42,
     icon: more ? 'trending-up' : 'trending-down',
     tone: more ? 'expense' : 'income',
-    text: `Za ${name} ${group ? 'jste utratili' : 'jsi utratil'} o ${pct(best.ratio)} % ${more ? 'víc' : 'míň'} než minule (${formatMoney(best.diff, { sign: true })})`,
+    text: `Za ${name} jste utratili o ${pct(best.ratio)} % ${more ? 'víc' : 'míň'} než minule (${formatMoney(best.diff, { sign: true })})`,
     filter: { period: 'custom', from: ranges.current.from, to: ranges.current.to, type: 'expense', categories: [best.categoryId] },
   }
 }
@@ -130,7 +130,7 @@ function largestExpense(transactions, categories, ranges) {
   }
 }
 
-function savingsRate(transactions, ranges, group) {
+function savingsRate(transactions, ranges) {
   const inRange = transactions.filter((t) => t.date >= ranges.current.from && t.date <= ranges.current.to)
   const income = sum(inRange.filter((t) => t.type === 'income'))
   if (!income) return null
@@ -152,7 +152,7 @@ function savingsRate(transactions, ranges, group) {
     score: 35,
     icon: 'piggy-bank',
     tone: 'income',
-    text: `Z příjmů ${group ? 'vám' : 'ti'} zatím zbylo ${pct(left / income)} %`,
+    text: `Z příjmů vám zatím zbylo ${pct(left / income)} %`,
     filter,
   }
 }
@@ -182,20 +182,36 @@ function upcomingSubscription(upcoming, now) {
   }
 }
 
+/** Návrhy detektoru; `href` místo filtru vede do trackeru. */
+function subscriptionSuggestions(count) {
+  if (!count) return null
+  let what = `${count} možných předplatných`
+  if (count === 1) what = '1 možné předplatné'
+  else if (count < 5) what = `${count} možná předplatná`
+  return {
+    id: 'subscription-suggestions',
+    score: 65,
+    icon: 'repeat',
+    text: `Našli jsme ${what}`,
+    href: '/stats?tab=subscriptions',
+  }
+}
+
 /**
  * Postřehy seřazené podle důležitosti, nejvýše 4.
  * enoughHistory: false → srovnání s minulým měsícem se nepočítají (karta to řekne),
  * postřehy jen z aktuálního měsíce platí dál.
  */
-export function buildInsights({ transactions, categories, now = today(), group = false, upcoming = [] }) {
+export function buildInsights({ transactions, categories, now = today(), upcoming = [], suggestionCount = 0 }) {
   const ranges = comparableRanges(now)
   const enoughHistory = hasEnoughHistory(transactions, now)
   const candidates = [
     enoughHistory && monthComparison(transactions, ranges),
-    enoughHistory && categoryChange(transactions, categories, ranges, group),
+    enoughHistory && categoryChange(transactions, categories, ranges),
     largestExpense(transactions, categories, ranges),
-    savingsRate(transactions, ranges, group),
+    savingsRate(transactions, ranges),
     upcomingSubscription(upcoming, now),
+    subscriptionSuggestions(suggestionCount),
   ]
   const insights = candidates
     .filter(Boolean)

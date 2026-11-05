@@ -37,6 +37,7 @@ export function bindInsightsCard(root, getInsights) {
     if (!row) return
     const insight = getInsights()[Number(row.dataset.insight)]
     if (!insight) return
+    if (insight.href) return navigate(insight.href)
     setTransactionFilter({ ...emptyFilter(), ...insight.filter })
     navigate('/transactions')
   }

@@ -4,6 +4,8 @@ import { renderFeed, bindFeed } from '../components/feed.js'
 import { renderInviteBanner, bindInviteBanner } from '../components/inviteBanner.js'
 import { renderInsightsCard, bindInsightsCard } from '../components/insightsCard.js'
 import { buildInsights } from '../utils/insights.js'
+import { subscriptionData, suggestionHintDue } from '../state/subscriptions.js'
+import { canEdit } from '../state/space.js'
 import { esc } from '../utils/dom.js'
 import { icon } from '../utils/icons.js'
 import { formatMoney, formatPercent } from '../utils/format.js'
@@ -34,7 +36,14 @@ export default function overviewView(el) {
     const balances = accountBalances(state)
     const name = state.profile?.username ?? ''
     const alerts = budgetAlerts(state)
-    monthInsights = buildInsights({ transactions: state.transactions, categories: state.categories, group: Boolean(state.space) })
+    const subscriptions = subscriptionData(state)
+    monthInsights = buildInsights({
+      transactions: state.transactions,
+      categories: state.categories,
+      upcoming: subscriptions.upcoming,
+      // pozorovatel návrhy potvrdit nemůže; ostatním se připomenou jen jednou za čas
+      suggestionCount: canEdit(state) && suggestionHintDue(subscriptions.suggestions.length) ? subscriptions.suggestions.length : 0,
+    })
 
     el.innerHTML = `
       <header class="page-header">

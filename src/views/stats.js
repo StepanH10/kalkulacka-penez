@@ -1,6 +1,7 @@
 import { getState, subscribe } from '../state/store.js'
 import { transactionsInRange, totals, categoryMap, categoriesByType } from '../state/selectors.js'
 import { donutChart, barChart } from '../components/charts.js'
+import subscriptionsTab from './subscriptions.js'
 import { authorName } from '../state/space.js'
 import { esc } from '../utils/dom.js'
 import { icon } from '../utils/icons.js'
@@ -38,7 +39,7 @@ function categoryOptions(selected) {
   return `<option value="">Všechny kategorie</option>${group('expense', 'Výdaje')}${group('income', 'Příjmy')}`
 }
 
-export default function statsView(el) {
+function overviewTab(el) {
   const filter = { period: 'this', from: monthRange(0).from, to: today(), categoryId: '' }
   let charts = []
 
@@ -86,8 +87,6 @@ export default function statsView(el) {
     }
 
     el.innerHTML = `
-      <header class="page-header"><h1>Statistiky</h1></header>
-
       <div class="filters">
         <div class="pills" role="group" aria-label="Období">
           ${PERIODS.map(([key, label]) => `<button type="button" class="pill" data-period="${key}" aria-pressed="${filter.period === key}">${label}</button>`).join('')}
@@ -211,5 +210,44 @@ export default function statsView(el) {
     window.removeEventListener('themechange', draw)
     el.removeEventListener('click', onClick)
     el.removeEventListener('change', onChange)
+  }
+}
+
+const TABS = { overview: ['Přehled', overviewTab], subscriptions: ['Předplatná', subscriptionsTab] }
+
+export default function statsView(el) {
+  const requested = new URLSearchParams(location.search).get('tab')
+  let tab = TABS[requested] ? requested : 'overview'
+  let cleanup = null
+
+  el.innerHTML = `
+    <header class="page-header"><h1>Statistiky</h1></header>
+    <div class="segmented stats-tabs" role="group" aria-label="Sekce statistik">
+      ${Object.entries(TABS).map(([key, [label]]) => `<button type="button" data-tab="${key}" aria-pressed="${key === tab}">${label}</button>`).join('')}
+    </div>
+    <div data-tab-body></div>`
+  const body = el.querySelector('[data-tab-body]')
+
+  const mount = () => {
+    cleanup?.()
+    body.innerHTML = ''
+    cleanup = TABS[tab][1](body) ?? null
+  }
+
+  const onClick = (e) => {
+    const button = e.target.closest('[data-tab]')
+    if (!button || button.dataset.tab === tab) return
+    tab = button.dataset.tab
+    el.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-pressed', String(b === button)))
+    // záložka je v adrese, aby přežila obnovení stránky a šel na ni odkaz z Přehledu
+    history.replaceState(null, '', tab === 'overview' ? '/stats' : `/stats?tab=${tab}`)
+    mount()
+  }
+
+  el.addEventListener('click', onClick)
+  mount()
+  return () => {
+    cleanup?.()
+    el.removeEventListener('click', onClick)
   }
 }

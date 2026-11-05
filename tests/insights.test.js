@@ -49,7 +49,7 @@ test('srovnání chybí, když minule nebyly žádné výdaje', () => {
 
 test('kategorie: text ze zadání, jen při změně ≥ 15 % a zároveň ≥ 200 Kč', () => {
   const item = pick(build([exp('2026-11-02', 4064), exp('2026-10-02', 3444)]), 'category-change')
-  assert.match(item.text, /^Za Jídlo jsi utratil o 18 % víc než minule \(\+620\s*Kč\)$/)
+  assert.match(item.text, /^Za Jídlo jste utratili o 18 % víc než minule \(\+620\s*Kč\)$/)
   assert.deepEqual(item.filter.categories, ['food'])
 })
 
@@ -69,7 +69,7 @@ test('kategorie: vyhrává největší změna v korunách, i pokles', () => {
     exp('2026-11-02', 1000, 'fun'), exp('2026-10-02', 2000, 'fun'),
   ]
   const item = pick(build(rows), 'category-change')
-  assert.match(item.text, /^Za Zábava jsi utratil o 50 % míň/)
+  assert.match(item.text, /^Za Zábava jste utratili o 50 % míň/)
 })
 
 test('největší výdaj měsíce: filtr míří na tu transakci, budoucí výdaj se nepočítá', () => {
@@ -81,15 +81,17 @@ test('největší výdaj měsíce: filtr míří na tu transakci, budoucí výda
 
 test('míra úspor: jen s příjmy v měsíci, záporná bilance má jiný text', () => {
   assert.equal(pick(build([exp('2026-11-02', 100)]), 'savings-rate'), undefined)
-  assert.match(pick(build([inc('2026-11-01', 1000), exp('2026-11-02', 770)]), 'savings-rate').text, /^Z příjmů ti zatím zbylo 23 %$/)
+  assert.match(pick(build([inc('2026-11-01', 1000), exp('2026-11-02', 770)]), 'savings-rate').text, /^Z příjmů vám zatím zbylo 23 %$/)
   assert.match(pick(build([inc('2026-11-01', 1000), exp('2026-11-02', 1200)]), 'savings-rate').text, /převyšují příjmy o 200/)
 })
 
-test('skupina: texty v množném čísle', () => {
-  const rows = [inc('2026-11-01', 5000), exp('2026-11-02', 1200), exp('2026-10-02', 1000)]
-  const result = build(rows, { group: true })
-  assert.match(pick(result, 'savings-rate').text, /Z příjmů vám/)
-  assert.match(pick(result, 'category-change').text, /jste utratili/)
+test('návrhy detektoru: skloňování a odkaz do trackeru', () => {
+  const text = (suggestionCount) => pick(build([], { suggestionCount }), 'subscription-suggestions')?.text
+  assert.equal(text(0), undefined)
+  assert.equal(text(1), 'Našli jsme 1 možné předplatné')
+  assert.equal(text(3), 'Našli jsme 3 možná předplatná')
+  assert.equal(text(5), 'Našli jsme 5 možných předplatných')
+  assert.equal(pick(build([], { suggestionCount: 1 }), 'subscription-suggestions').href, '/stats?tab=subscriptions')
 })
 
 test('málo historie: žádná srovnání, ale postřehy z aktuálního měsíce zůstanou', () => {

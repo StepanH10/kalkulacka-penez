@@ -15,6 +15,7 @@ export const TABLES = {
   budgets: 'budgets',
   recurring: 'recurring',
   rules: 'import_rules',
+  subscriptions: 'subscriptions',
 }
 
 const PAGE = 1000

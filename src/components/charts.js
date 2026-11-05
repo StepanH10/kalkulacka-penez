@@ -6,12 +6,15 @@ import {
   CategoryScale,
   DoughnutController,
   LinearScale,
+  LineController,
+  LineElement,
+  PointElement,
   Tooltip,
 } from 'chart.js'
 import { cssVar } from '../utils/theme.js'
 import { formatMoney } from '../utils/format.js'
 
-Chart.register(ArcElement, BarController, BarElement, CategoryScale, DoughnutController, LinearScale, Tooltip)
+Chart.register(ArcElement, BarController, BarElement, CategoryScale, DoughnutController, LinearScale, LineController, LineElement, PointElement, Tooltip)
 
 function baseOptions() {
   Chart.defaults.font.family = cssVar('--font')
@@ -67,6 +70,43 @@ export function barChart(canvas, { labels, income, expense }) {
             maxTicksLimit: 5,
             callback: (v) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)} tis.` : v),
           },
+        },
+      },
+    },
+  })
+}
+
+/** Vývoj ceny: jedna řada, osa od nuly, aby malá změna nevypadala jako skok. */
+export function priceChart(canvas, { labels, values }) {
+  const accent = cssVar('--accent')
+  return new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          data: values,
+          borderColor: accent,
+          backgroundColor: accent,
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBorderColor: cssVar('--card'),
+          pointBorderWidth: 2,
+          pointHoverRadius: 6,
+          pointHitRadius: 16,
+          tension: 0,
+        },
+      ],
+    },
+    options: {
+      ...baseOptions(),
+      scales: {
+        x: { grid: { display: false }, border: { display: false }, ticks: { maxTicksLimit: 4, maxRotation: 0 } },
+        y: {
+          beginAtZero: true,
+          grid: { color: cssVar('--border') },
+          border: { display: false },
+          ticks: { maxTicksLimit: 4, callback: (v) => formatMoney(v) },
         },
       },
     },
